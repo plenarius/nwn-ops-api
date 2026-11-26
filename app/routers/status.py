@@ -1,7 +1,7 @@
 import secrets
 import shlex
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 
 from app.auth import require_feature
 from app.services import server
@@ -19,6 +19,17 @@ async def server_status(request: Request):
     return await server.get_full_status(
         ssh=state.ssh, db_pool=state.db_pool, redis_client=state.redis, http_session=state.http_session, settings=state.settings,
     )
+
+
+@router.get("/online", dependencies=[require_feature("roster")])
+async def server_online(request: Request):
+    """Who is in the game now, from ONLINE_SQL: {"count", "characters": [{"name", ...}]}. 503 when the database doesn't answer."""
+    state = request.app.state
+    try:
+        characters = await server.get_online(state.settings, state.db_pool)
+    except server.RosterUnavailable:
+        raise HTTPException(503, "The game database did not answer")
+    return {"count": len(characters), "characters": characters}
 
 
 @router.get("/modules", dependencies=[require_feature("deploy")])

@@ -105,6 +105,9 @@ class Settings(BaseSettings):
     # --- player counts --------------------------------------------------------------------------------------------------------------------
     # Optional: a query on the game database returning (players[, dms]) for the people online, used instead of the UDP status query.
     player_count_sql: str = ""
+    # Optional: a query on the game database returning one row per character to show on a roster of who's online, the character's name
+    # first; any further columns come back under their own names. Leave DMs out in the query itself, so they are not even counted.
+    online_sql: str = ""
     mysql_host: str = ""
     mysql_port: int = 3306
     mysql_user: str = "nwn"
@@ -214,6 +217,7 @@ class Settings(BaseSettings):
             "start_command": bool(self.game_host and self.game_start_command),
             "redis": bool(self.redis_url),
             "player_db": bool(self.mysql_host and self.player_count_sql),
+            "roster": bool(self.mysql_host and self.online_sql),
             "github": bool(self.github_token and self.repos),
             "discord": bool(self.discord_webhook_url),
             "game_data": bool(self.game_nwn_root),
@@ -230,6 +234,7 @@ class Settings(BaseSettings):
         "start_command": "GAME_HOST and GAME_START_COMMAND",
         "redis": "REDIS_URL",
         "player_db": "MYSQL_HOST and PLAYER_COUNT_SQL",
+        "roster": "MYSQL_HOST and ONLINE_SQL",
         "github": "GITHUB_TOKEN and REPOS",
         "discord": "DISCORD_WEBHOOK_URL",
         "game_data": "GAME_NWN_ROOT",

@@ -73,6 +73,34 @@ def is_running(status: str | None) -> bool:
     return status is not None and "running" in status
 
 
+ROSTER_LIMIT = 200
+
+
+class RosterUnavailable(Exception):
+    pass
+
+
+async def get_online(settings, db_pool) -> list[dict]:
+    """Who is online, from ONLINE_SQL: one dict per row, {"name": first column, other columns by their names}, at most ROSTER_LIMIT.
+    Raises RosterUnavailable when the database doesn't answer, so a caller can tell "nobody on" from "can't tell"."""
+    try:
+        async with db_pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(settings.online_sql)
+                columns = [d[0] for d in cur.description or []]
+                rows = await cur.fetchall()
+    except Exception as e:
+        logger.warning("online query failed: %s", type(e).__name__)
+        raise RosterUnavailable() from e
+    out = []
+    for row in rows[:ROSTER_LIMIT]:
+        item = {"name": str(row[0] or "")}
+        for column, value in zip(columns[1:], row[1:]):
+            item[column] = value if value is None or isinstance(value, (int, float, bool)) else str(value)
+        out.append(item)
+    return out
+
+
 async def get_player_count(settings, db_pool=None) -> dict:
     """Players and DMs online: from PLAYER_COUNT_SQL when the game database is configured, else from the game's own status query (which
     counts players only, so dms is 0). -1 when neither answers."""
