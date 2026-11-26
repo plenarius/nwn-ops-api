@@ -72,16 +72,31 @@ async def get_local_image(ssh: SshClient, image: str) -> dict:
 
 
 def parse_image(image: str) -> tuple[str, str, str]:
-    """ghcr.io/nwnxee/unified:latest -> ("ghcr.io", "nwnxee/unified", "latest")."""
-    registry, _, rest = image.partition("/")
-    repo, _, tag = rest.partition(":")
-    return registry, repo, tag or "latest"
+    """ghcr.io/nwnxee/unified:latest -> ("ghcr.io", "nwnxee/unified", "latest"); a Docker Hub name (nwnxee/unified:ed79330, debian) is on
+    docker.io, with library/ for an official image."""
+    name, tag = image, "latest"
+    head, _, last = image.rpartition("/")
+    if ":" in last:
+        last, _, tag = last.partition(":")
+        name = f"{head}/{last}" if head else last
+    first, _, rest = name.partition("/")
+    if rest and ("." in first or ":" in first or first == "localhost"):
+        return first, rest, tag
+    return "docker.io", name if rest else f"library/{name}", tag
+
+
+def _endpoints(registry: str, repo: str) -> tuple[str, str, dict]:
+    """(the registry's API base, its token URL, the token query) for anonymous pulls."""
+    if registry == "docker.io":
+        return f"https://registry-1.docker.io/v2/{repo}", "https://auth.docker.io/token", {
+            "service": "registry.docker.io", "scope": f"repository:{repo}:pull"}
+    return f"https://{registry}/v2/{repo}", f"https://{registry}/token", {"scope": f"repository:{repo}:pull"}
 
 
 async def _fetch_latest(session: aiohttp.ClientSession, image: str) -> dict:
     registry, repo, tag = parse_image(image)
-    base = f"https://{registry}/v2/{repo}"
-    async with session.get(f"https://{registry}/token", params={"scope": f"repository:{repo}:pull"}) as resp:
+    base, token_url, params = _endpoints(registry, repo)
+    async with session.get(token_url, params=params) as resp:
         resp.raise_for_status()
         token = (await resp.json())["token"]
     headers = {"Authorization": f"Bearer {token}", "Accept": _MANIFEST_TYPES}

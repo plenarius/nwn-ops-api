@@ -73,6 +73,20 @@ def clear_cache():
 def test_parse_image():
     assert parse_image("ghcr.io/nwnxee/unified:latest") == ("ghcr.io", "nwnxee/unified", "latest")
     assert parse_image("ghcr.io/nwnxee/unified") == ("ghcr.io", "nwnxee/unified", "latest")
+    assert parse_image("nwnxee/unified:ed79330") == ("docker.io", "nwnxee/unified", "ed79330")
+    assert parse_image("debian") == ("docker.io", "library/debian", "latest")
+    assert parse_image("localhost:5000/me/nwn:dev") == ("localhost:5000", "me/nwn", "dev")
+
+
+@pytest.mark.asyncio
+async def test_get_latest_from_docker_hub():
+    hub = "https://registry-1.docker.io/v2/nwnxee/unified"
+    session = FakeSession({
+        "https://auth.docker.io/token": {"token": "anon"},
+        f"{hub}/manifests/ed79330": {"config": {"digest": "sha256:cfg"}},
+        f"{hub}/blobs/sha256:cfg": {"config": {"Labels": LABELS}},
+    })
+    assert (await get_latest(session, "nwnxee/unified:ed79330"))["revision"] == NEW
 
 
 @pytest.mark.asyncio
