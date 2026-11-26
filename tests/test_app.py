@@ -76,7 +76,7 @@ def test_every_route_has_a_key_group(client):
     assert sorted(p for (p, m), a in by.items() if a == "read") == [
         "/api/v1/game/2da/{table}", "/api/v1/game/2da/{table}/{row}", "/api/v1/game/items/{resref}", "/api/v1/game/tlk/{strref}",
         "/api/v1/game/vault/{folder}", "/api/v1/game/vault/{folder}/{file}",
-        "/api/v1/server/modules", "/api/v1/server/progress", "/api/v1/server/status"]
+        "/api/v1/server/modules", "/api/v1/server/online", "/api/v1/server/progress", "/api/v1/server/status"]
     assert by[("/api/v1/game/vault/{folder}/{file}/retire", "POST")] == "admin"
 
 

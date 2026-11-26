@@ -15,6 +15,7 @@ WireGuard. The API runs on the control host and reaches the game host over SSH; 
 | `GET /api/v1/server/status` | read | Running or not, when it last started (`started_at`, ISO 8601 UTC, null if unknown), players online, the module, the NWNX build running and the newest one, what is staged, a pending countdown |
 | `GET /api/v1/server/modules` | read | The modules that could be deployed (staged and live), with the current one |
 | `GET /api/v1/server/logs?lines=20` | team | The end of the game's log |
+| `GET /api/v1/server/online` | read | Who is online: `{"count", "characters": [{"name", ...}]}` from `ONLINE_SQL`, at most 200; 503 when the database doesn't answer |
 | `GET /api/v1/server/progress` | read | What is happening right now: running operations, the container, the countdown, the start-up markers in the log, and the log's last lines (not for the read key) |
 | `POST /api/v1/server/restart` | team | Restart after a countdown (`{"wait_minutes", "reason"}`) |
 | `POST /api/v1/server/cancel-restart` | team | Cancel the countdown |
@@ -80,6 +81,7 @@ with comments.
 | `REDIS_URL` | | The game's Redis (NWNX_Redis), for the in-game countdown |
 | `REDIS_PREFIX` | `nwn:` | Commands go to `<prefix>cmd`; the module must use the same prefix |
 | `REDIS_REPLY_TIMEOUT` | `5` | Seconds to wait for the game's reply |
+| `ONLINE_SQL` | | Optional: the query behind `GET /server/online`, one row per character with its name first (further columns are returned by name). Leave DMs out in the query |
 | `PLAYER_COUNT_SQL`, `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DB` | | Optional: count players (and DMs) with a query on the game database instead of the status query |
 | `NWNX_IMAGE` | `ghcr.io/nwnxee/unified:latest` | The image an NWNX update pulls |
 | `NWNX_REPO` | `nwnxee/unified` | The repository it is built from, for commit links |

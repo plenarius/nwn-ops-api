@@ -15,6 +15,7 @@ The first version: the operations core of a private ops API that has run a persi
   outside after the countdown.
 - Coolify, or a start command over SSH, to bring the game back.
 - Players counted with the game's own status query, or a query on the game database.
+- `GET /server/online` on the read key: who is online, from a query on the game database (`ONLINE_SQL`).
 - Discord webhook announcements; optional OpenTelemetry tracing.
 - Game data, off unless `GAME_NWN_ROOT` is set: talk table strings, 2DA tables and rows, an item blueprint's examine panel, a player's
   vault folder and a character sheet from its vault file, all on the read key; retiring a character (a rename, refused while anyone is
