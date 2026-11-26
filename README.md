@@ -32,7 +32,7 @@ WireGuard. The API runs on the control host and reaches the game host over SSH; 
 | `GET /api/v1/game/2da/{table}` | read | A 2DA's columns and row count, and where the game finds it (a hak, the module, override, ovr or base) |
 | `GET /api/v1/game/2da/{table}/{row}?names=true` | read | One row, `{column: cell}`; with `names`, the talk table text of its name and description columns |
 | `GET /api/v1/game/items/{resref}?identified=true` | read | An item blueprint as the game's examine panel words it: name, kind, weight, value, level required, properties |
-| `GET /api/v1/game/vault/{folder}` | read | The character files in one player's server vault folder, newest first |
+| `GET /api/v1/game/vault/{folder}` | read | The character files in one player's server vault folder, newest first (this and the next two need `GAME_VAULT=on`) |
 | `GET /api/v1/game/vault/{folder}/{file}` | read | A character sheet from the vault file: name, description, race, alignment, classes and levels, ability scores, skill ranks, feats, the gear worn with its examine panels, the portrait |
 | `POST /api/v1/game/vault/{folder}/{file}/retire` | admin | Take a character out of the vault by renaming its file (`{"dry_run": true}` by default); refused while anyone is online |
 
@@ -96,7 +96,8 @@ with comments.
 | `GAME_TLK_DIR`, `GAME_CUSTOM_TLK` | `GAME_HAK_DIR`, from the module | The custom talk table's folder and name |
 | `GAME_OVERRIDE_DIR` | | An override folder the server uses |
 | `GAME_ITEM_LEVEL_RESTRICTION` | `true` | Whether the server's item level restriction is on: items then show "Level Required" |
-| `SERVERVAULT` | `GAME_DIR/home/servervault` | The server vault on the game host, read over SSH; the vault routes need `GAME_HOST` too |
+| `GAME_VAULT` | `off` | `on` switches on the vault routes (with `GAME_HOST` and the vault's path; a character sheet needs `GAME_NWN_ROOT` too). Off by default: vault folder names are players' CD keys and the read key opens the listing |
+| `SERVERVAULT` | `GAME_DIR/home/servervault` | The server vault on the game host, read over SSH |
 
 ## Running it
 
