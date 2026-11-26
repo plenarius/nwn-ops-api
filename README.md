@@ -56,6 +56,7 @@ with comments.
 | `SSH_USER` | `nwn` | The user the API logs in as. It must be able to run `docker` |
 | `SSH_KEY_PATH` | `/data/ssh/id_ed25519` | Its private key, in the container |
 | `SSH_KNOWN_HOSTS` | | A known_hosts file with the game host's key. Unset, the key is not checked (a warning is logged) |
+| `SSH_SUDO` | `false` | Run the commands that change the game's files (`mv`, `sed`, `rm`, the deploy hook) with `sudo -n`, for a game folder the SSH user can't write. It then needs passwordless sudo for those |
 | `CONTAINER_FILTER` | `nwserver` | Containers whose name contains this are the game server |
 | `GAME_DIR` | | The game's folder on the game host; fills in the paths below in the layout `home/modules`, `home/modules/.staged`, `home/hak`, `home/hak/.staged`, `home/tlk`, `home/development`, `logs/nwserverLog1.txt`, `.env` |
 | `MOD_LIVE`, `MOD_STAGE`, `HAK_LIVE`, `HAK_STAGE`, `TLK_LIVE`, `DEVELOPMENT_DIR`, `LOG_FILE`, `NWN_ENV_FILE` | from `GAME_DIR` | Each path on its own, when your layout differs |

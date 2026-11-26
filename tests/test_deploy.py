@@ -43,11 +43,11 @@ async def test_deploy_promotes_staged_module_and_sets_nwn_module(mock_ssh, mock_
     errors = await _deploy(mock_ssh, mock_redis, mock_coolify)
 
     assert errors == []
-    assert any(c.startswith("mv /stage/mod/*.mod /live/mod/") for c in calls)
+    assert any(c.startswith("sh -c 'mv /stage/mod/*.mod /live/mod/'") for c in calls)
     sed = next(c for c in calls if c.startswith("sed"))
     assert "NWN_MODULE=MyWorld_6-23" in sed and "/env1" in sed and "/env2" in sed
     mock_coolify.patch_env.assert_called_once_with("test-uuid", "NWN_MODULE", "MyWorld_6-23")
-    assert any(c.startswith("rm -f /dev/*") for c in calls), "hot-loaded overrides dropped after a good deploy"
+    assert any(c.startswith("sh -c 'rm -f /dev/*") for c in calls), "hot-loaded overrides dropped after a good deploy"
 
 
 @pytest.mark.asyncio
@@ -59,7 +59,7 @@ async def test_deploy_recreates_container_instead_of_in_game_restart(mock_ssh, m
 
     assert errors == []
     stop = next(i for i, c in enumerate(calls) if "docker stop" in c)
-    move = next(i for i, c in enumerate(calls) if c.startswith("mv /stage/mod"))
+    move = next(i for i, c in enumerate(calls) if c.startswith("sh -c 'mv /stage/mod"))
     assert stop < move, "container stops before files are swapped"
     mock_coolify.post.assert_called_once_with("/services/test-uuid/restart")
     redis_cmd.assert_not_called()
@@ -67,7 +67,7 @@ async def test_deploy_recreates_container_instead_of_in_game_restart(mock_ssh, m
 
 @pytest.mark.asyncio
 async def test_deploy_failed_promote_keeps_old_module_and_haks_but_restarts(mock_ssh, mock_redis, mock_coolify):
-    calls, mock_ssh.run = _runs(fail="mv /stage/mod")
+    calls, mock_ssh.run = _runs(fail="sh -c 'mv /stage/mod")
     with patch("app.services.deploy.get_staged_files", new=AsyncMock(return_value=([], ["x.hak"]))):
         errors = await _deploy(mock_ssh, mock_redis, mock_coolify)
 
@@ -75,7 +75,7 @@ async def test_deploy_failed_promote_keeps_old_module_and_haks_but_restarts(mock
     assert not any(c.startswith("sed") for c in calls), "NWN_MODULE untouched"
     mock_coolify.patch_env.assert_not_called()
     assert not any("cd /stage/hak" in c for c in calls), "haks stay staged"
-    assert not any(c.startswith("rm -f") for c in calls)
+    assert not any("rm -f" in c for c in calls)
     mock_coolify.post.assert_called_once_with("/services/test-uuid/restart")
 
 
@@ -109,13 +109,13 @@ async def test_the_deploy_hook_runs_before_the_start_with_the_module_name(mock_s
         return await orig(cmd, timeout)
     mock_ssh.run = run
     assert await _deploy(mock_ssh, mock_redis, mock_coolify, settings=_settings(deploy_hook="~/bin/rebuild-nwsync")) == []
-    assert any(c == "MODULE=MyWorld_6-23 ~/bin/rebuild-nwsync 2>&1" for c in calls)
+    assert any(c == "env MODULE=MyWorld_6-23 ~/bin/rebuild-nwsync 2>&1" for c in calls)
     assert order == ["hook", "start"]
 
 
 @pytest.mark.asyncio
 async def test_a_failed_hook_is_an_error_and_the_server_still_starts(mock_ssh, mock_redis, mock_coolify):
-    calls, mock_ssh.run = _runs(fail="MODULE=")
+    calls, mock_ssh.run = _runs(fail="env MODULE=")
     errors = await _deploy(mock_ssh, mock_redis, mock_coolify, settings=_settings(deploy_hook="false"))
     assert any("Deploy hook" in e for e in errors)
     mock_coolify.post.assert_called_once()
@@ -179,7 +179,7 @@ def test_promote_moves_the_talk_table_to_the_tlk_folder(tmp_path):
     (stage / "myhak.hak").write_text("new hak")
     (stage / "custom.tlk").write_text("new tlk")
     (tlk / "custom.tlk").write_text("old tlk")
-    settings = MagicMock(hak_stage=str(stage), hak_live=str(hak), tlk_live=str(tlk))
+    settings = MagicMock(hak_stage=str(stage), hak_live=str(hak), tlk_live=str(tlk), sudo="")
     result = subprocess.run(["bash", "-c", promote_haks_command(settings)], capture_output=True, text=True)
     assert result.returncode == 0, result.stdout + result.stderr
     assert (hak / "myhak.hak").read_text() == "new hak"
@@ -191,7 +191,7 @@ def test_promote_moves_the_talk_table_to_the_tlk_folder(tmp_path):
 def test_promote_with_nothing_staged_is_fine(tmp_path):
     stage = tmp_path / "stage"
     stage.mkdir()
-    settings = MagicMock(hak_stage=str(stage), hak_live=str(tmp_path), tlk_live=str(tmp_path))
+    settings = MagicMock(hak_stage=str(stage), hak_live=str(tmp_path), tlk_live=str(tmp_path), sudo="")
     assert subprocess.run(["bash", "-c", promote_haks_command(settings)]).returncode == 0
 
 
@@ -228,3 +228,14 @@ async def test_countdown_when_someone_is_on(mock_ssh, mock_redis, mock_coolify):
     payload = json.loads(mock_redis.publish.call_args[0][1])
     assert payload["args"] == {"seconds": 120, "reason": "deploy v6.23 by ci"}
     sleep.assert_awaited_once_with(135)
+
+
+@pytest.mark.asyncio
+async def test_with_ssh_sudo_the_file_changes_run_under_sudo(mock_ssh, mock_redis, mock_coolify):
+    calls, mock_ssh.run = _runs()
+    s = _settings(ssh_sudo=True, deploy_hook="/usr/local/bin/hook")
+    with patch("app.services.deploy.get_staged_files", new=AsyncMock(return_value=([], ["x.hak"]))):
+        assert await _deploy(mock_ssh, mock_redis, mock_coolify, settings=s) == []
+    changing = [c for c in calls if any(w in c for w in ("mv ", "sed ", "rm -f", "MODULE="))]
+    assert changing and all("sudo -n " in c for c in changing)
+    assert not any(c.startswith("sudo") for c in calls if c.startswith(("ls", "md5sum", "docker")))

@@ -24,15 +24,16 @@ def promote_haks_command(settings) -> str:
     """The shell command that puts the staged haks live: each staged file moves to the hak folder, except a talk table (*.tlk), which goes
     to the folder the game server reads its custom TLK from (TLK_LIVE), if set."""
     tlk = settings.tlk_live or settings.hak_live
+    sudo = settings.sudo
     return (f"cd {settings.hak_stage} && for f in *; do [ -f \"$f\" ] || continue; case \"$f\" in "
-            f"*.tlk) mv -f -- \"$f\" {tlk}/ ;; *) mv -f -- \"$f\" {settings.hak_live}/ ;; esac || exit 1; done 2>&1")
+            f"*.tlk) {sudo}mv -f -- \"$f\" {tlk}/ ;; *) {sudo}mv -f -- \"$f\" {settings.hak_live}/ ;; esac || exit 1; done 2>&1")
 
 
 async def _set_module(ssh: SshClient, coolify, settings, mod_name: str) -> None:
     """Point the server at the module: NWN_MODULE in the env files on the game host and in Coolify's settings for the service."""
     files = " ".join(shlex.quote(f) for f in (settings.nwn_env_file, settings.coolify_env_file) if f)
     if files:
-        r = await ssh.run(f"sed -i 's/^NWN_MODULE=.*/NWN_MODULE={mod_name}/' {files} 2>&1", timeout=10)
+        r = await ssh.run(f"{settings.sudo}sed -i 's/^NWN_MODULE=.*/NWN_MODULE={mod_name}/' {files} 2>&1", timeout=10)
         if r.returncode != 0:
             raise RuntimeError(f"sed: {r.stdout[-300:]}")
     if coolify is not None and settings.features()["coolify"]:
@@ -43,7 +44,7 @@ async def _hook(ssh: SshClient, settings, mod_name: str, errors: list[str]) -> N
     if not settings.deploy_hook:
         return
     try:
-        r = await ssh.run(f"MODULE={shlex.quote(mod_name)} {settings.deploy_hook} 2>&1", timeout=600)
+        r = await ssh.run(f"{settings.sudo}env MODULE={shlex.quote(mod_name)} {settings.deploy_hook} 2>&1", timeout=600)
         if r.returncode != 0:
             errors.append(f"Deploy hook ({r.returncode}): {r.stdout[-300:]}")
     except Exception as e:
@@ -81,7 +82,7 @@ async def deploy_module(ssh: SshClient, redis_client, coolify, http_session, mod
     promoted = True
     if staged:
         try:
-            result = await ssh.run(f"mv {s.mod_stage}/*.mod {s.mod_live}/ 2>&1", timeout=30)
+            result = await ssh.run(f"{s.sudo}sh -c 'mv {s.mod_stage}/*.mod {s.mod_live}/' 2>&1", timeout=30)
             if result.returncode != 0:
                 promoted = False
                 errors.append(f"Stage promote: {result.stderr or result.stdout}")
@@ -111,7 +112,7 @@ async def deploy_module(ssh: SshClient, redis_client, coolify, http_session, mod
         await _hook(ssh, s, mod_name, errors)
 
     if not errors and s.development_dir:
-        await ssh.run(f"rm -f {shlex.quote(s.development_dir)}/* 2>/dev/null")
+        await ssh.run(f"{s.sudo}sh -c 'rm -f {s.development_dir}/*' 2>/dev/null")
 
     # The server is stopped: always bring it back, even after an error above.
     started, msg = await start_game(ssh, coolify, s)
@@ -193,7 +194,7 @@ async def full_deploy(ssh: SshClient, redis_client, coolify, http_session, wait_
     if "module" in to_apply:
         module_in = False
         try:
-            result = await ssh.run(f"mv {s.mod_stage}/*.mod {s.mod_live}/ 2>&1", timeout=30)
+            result = await ssh.run(f"{s.sudo}sh -c 'mv {s.mod_stage}/*.mod {s.mod_live}/' 2>&1", timeout=30)
             if result.returncode != 0:
                 errors.append(f"Module move: {result.stderr or result.stdout}")
             else:

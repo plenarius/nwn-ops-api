@@ -54,6 +54,9 @@ class Settings(BaseSettings):
     ssh_key_path: str = "/data/ssh/id_ed25519"
     # A known_hosts file holding the game host's key. Unset, the host key is not checked (logged as a warning at start-up).
     ssh_known_hosts: str = ""
+    # Run the commands that change the game's files (mv, sed, rm, the deploy hook) with `sudo -n`, for a game folder the SSH user can't
+    # write (the guide's layout, made with sudo). The user then needs passwordless sudo for those commands.
+    ssh_sudo: bool = False
     # Containers whose name contains this are the game server (docker ps --filter name=...).
     container_filter: str = "nwserver"
 
@@ -148,6 +151,10 @@ class Settings(BaseSettings):
         re.compile(self.module_version_regex)
         re.compile(self.release_tag_regex)
         return self
+
+    @property
+    def sudo(self) -> str:
+        return "sudo -n " if self.ssh_sudo else ""
 
     @property
     def repo_map(self) -> dict[str, Repo]:
