@@ -16,7 +16,8 @@ from app.config import Settings
 from app.coolify import CoolifyClient
 from app.db import create_db_pool
 from app.redis_client import create_redis
-from app.routers import actions, health, meta, server_repos, status
+from app.gamedata.data import GameData
+from app.routers import actions, game, health, meta, server_repos, status
 from app.ssh import SshClient
 from app.task_registry import TaskRegistry
 
@@ -52,6 +53,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.coolify = (CoolifyClient(s.coolify_url.rstrip("/"), s.coolify_token, app.state.http_session)
                              if s.features()["coolify"] else None)
         app.state.tasks = TaskRegistry()
+        # Read on first use, not here: start-up stays quick and contacts nothing.
+        app.state.game_data = GameData(s) if s.features()["game_data"] else None
         on = [name for name, v in s.features().items() if v]
         logger.info("%s started; configured: %s", s.app_title, ", ".join(on) or "nothing but the keys")
         yield
@@ -92,4 +95,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     include(actions.team_router, dependencies=team_deps)
     include(actions.router, dependencies=admin_deps)
     include(server_repos.router, dependencies=admin_deps)
+    include(game.router, dependencies=read_deps)
+    include(game.admin_router, dependencies=admin_deps)
     return app

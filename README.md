@@ -28,6 +28,13 @@ WireGuard. The API runs on the control host and reaches the game host over SSH; 
 | `POST /api/v1/server/release` | admin | Tag a release on GitHub (`{"repo", "bump": "minor"|"major", "tag_override"}`) |
 | `GET /api/v1/server/repos` | admin | Per repository: last release, commits since, CI runs, the staging run, open pull requests |
 | `GET /api/v1/meta/systems` | admin | Every route with its key group, which parts are configured, which keys are set |
+| `GET /api/v1/game/tlk/{strref}` | read | The text of a string reference (dialog.tlk, or the module's custom talk table from 16777216) |
+| `GET /api/v1/game/2da/{table}` | read | A 2DA's columns and row count, and where the game finds it (a hak, the module, override, ovr or base) |
+| `GET /api/v1/game/2da/{table}/{row}?names=true` | read | One row, `{column: cell}`; with `names`, the talk table text of its name and description columns |
+| `GET /api/v1/game/items/{resref}?identified=true` | read | An item blueprint as the game's examine panel words it: name, kind, weight, value, level required, properties |
+| `GET /api/v1/game/vault/{folder}` | read | The character files in one player's server vault folder, newest first |
+| `GET /api/v1/game/vault/{folder}/{file}` | read | A character sheet from the vault file: name, description, race, alignment, classes and levels, ability scores, skill ranks, feats, the gear worn with its examine panels, the portrait |
+| `POST /api/v1/game/vault/{folder}/{file}/retire` | admin | Take a character out of the vault by renaming its file (`{"dry_run": true}` by default); refused while anyone is online |
 
 Each key opens its own routes and those of the groups below it: full and admin open everything, team opens team and read,
 read opens only read. A known key on a route above it gets 403, a wrong key 401.
@@ -82,6 +89,14 @@ with comments.
 | `RELEASE_BUMP_MESSAGE` | | A commit your release workflow adds on top of the tag (`{version}`), so the overview doesn't list it as waiting |
 | `DISCORD_WEBHOOK_URL`, `DISCORD_USERNAME`, `DISCORD_AVATAR_URL`, `SERVER_NAME` | | Announcements of restarts and updates, sent only when someone is online (deploys always announce) |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` and the other `OTEL_*` | | Request tracing with OpenTelemetry, off unless an endpoint is set |
+| `GAME_NWN_ROOT` | | The game install, in the API's container (`data/*.key` and bifs, `lang/<language>/data/dialog.tlk`, `ovr/`). Switches on the game data routes |
+| `GAME_LANGUAGE` | `en` | The language folder under `lang/` |
+| `GAME_MODULE_FILE` | | A copy of the module: its item blueprints, and its hak list and custom talk table when the next settings are unset |
+| `GAME_HAK_DIR`, `GAME_HAKS` | | The haks' folder, and their names in hak list order (comma separated; unset: from the module) |
+| `GAME_TLK_DIR`, `GAME_CUSTOM_TLK` | `GAME_HAK_DIR`, from the module | The custom talk table's folder and name |
+| `GAME_OVERRIDE_DIR` | | An override folder the server uses |
+| `GAME_ITEM_LEVEL_RESTRICTION` | `true` | Whether the server's item level restriction is on: items then show "Level Required" |
+| `SERVERVAULT` | `GAME_DIR/home/servervault` | The server vault on the game host, read over SSH; the vault routes need `GAME_HOST` too |
 
 ## Running it
 
@@ -131,6 +146,29 @@ Running the tests: `pip install -r requirements.txt && python -m pytest -q` (Pyt
   pub/sub connection can't log in to a Redis that asks, and then quietly subscribes to nothing.
 - **A restart of the API in the middle of a countdown or deploy loses it.** The operations run inside the API's process, with no record to
   resume from. Don't redeploy the API while one runs (`GET /api/v1/server/progress` shows them).
+
+## Game data
+
+The `/api/v1/game` routes read the game's own files, so a website can show a character sheet, an item or a name the way the game words it
+without a game client or a toolset. They are read-only (except retire, admin key) and expose nothing private, so the read key opens them.
+
+- **The files are the API's own copy.** Mount a folder holding the game install, the module, its haks and custom talk table read-only into
+  the container (`compose.yaml` has the line to uncomment), and keep it in step with the server: after a hak or module deploy, copy the new
+  files there too. The API sees changed files within ten seconds, without a restart. Character files are read from the game host over SSH
+  when asked, so a sheet is always the file as the game last saved it.
+- **Files are found the way the game finds them:** the haks in hak list order (the first listed wins), then the module, then the
+  override folder, then the install's `ovr` folders, then the base game's key and bif files (`nwn_retail` before `nwn_base`, the language
+  folder's first). Each answer says where its file came from.
+- **What the numbers are.** An item's value, weight, required level and property wording are ports of the server's and client's own code
+  (`CNWSItem::GetCost`, `GetMinEquipLevel`, `ComputeWeight`, `CGuiExamineItem::AddProperty`); its value and level matched the engine on
+  every one of about 9,000 blueprints of the base game and of a large persistent world. Ability scores are the base score, the race's and
+  classes' adjustments and the worn items' bonuses and penalties, by the server's caps. Spells and effects applied in the running game are not
+  in the file and not counted, and skills show the ranks the character bought, not the totals the game's sheet adds up.
+- **Unidentified items** show only what a player sees before identifying them: the base item's name and description, and the weight.
+- **Names keep the game's colour codes** (`<cRGB>…</c>`), as a player-given name holds them.
+- **Retire** renames `<file>.bic` to `<file>.bic.retired-<UTC time>` (and the game's `.bak` beside it) in the same folder: the character
+  leaves the player's list and nothing is deleted; renaming it back restores it. It runs only when the server is stopped or reports nobody
+  online, because a character who is logged in would be saved again under its old name.
 
 ## Known limits
 

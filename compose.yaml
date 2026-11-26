@@ -10,4 +10,6 @@ services:
       # The key the API logs in to the game host with, and that host's public key (readable by uid 1000 in the container).
       - ${SSH_KEY_FILE:-./ssh/id_ed25519}:/data/ssh/id_ed25519:ro
       - ${SSH_KNOWN_HOSTS_FILE:-./ssh/known_hosts}:/data/ssh/known_hosts:ro
+      # Game data (optional): a folder holding the game install, the module, its haks and talk table, read-only.
+      # - ./game:/data/game:ro
     restart: unless-stopped
