@@ -74,7 +74,10 @@ def test_every_route_has_a_key_group(client):
     assert by[("/api/v1/server/status", "GET")] == "read" and by[("/api/v1/server/logs", "GET")] == "team"
     # Every route but the read routes is for writes, actions, logs or secrets: the read key gets 403 there.
     assert sorted(p for (p, m), a in by.items() if a == "read") == [
+        "/api/v1/game/2da/{table}", "/api/v1/game/2da/{table}/{row}", "/api/v1/game/items/{resref}", "/api/v1/game/tlk/{strref}",
+        "/api/v1/game/vault/{folder}", "/api/v1/game/vault/{folder}/{file}",
         "/api/v1/server/modules", "/api/v1/server/progress", "/api/v1/server/status"]
+    assert by[("/api/v1/game/vault/{folder}/{file}/retire", "POST")] == "admin"
 
 
 def test_the_read_key_reads_and_does_nothing_else(client):

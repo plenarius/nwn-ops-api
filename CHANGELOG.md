@@ -16,6 +16,9 @@ The first version: the operations core of a private ops API that has run a persi
 - Coolify, or a start command over SSH, to bring the game back.
 - Players counted with the game's own status query, or a query on the game database.
 - Discord webhook announcements; optional OpenTelemetry tracing.
+- Game data, off unless `GAME_NWN_ROOT` is set: talk table strings, 2DA tables and rows, an item blueprint's examine panel, a player's
+  vault folder and a character sheet from its vault file, all on the read key; retiring a character (a rename, refused while anyone is
+  online) on the admin key. The game's files (GFF, ERF, KEY/BIF, TLK, 2DA) are read in pure Python, found in the game's own order.
 - An NWNX update leaves a game on another tag than `NWNX_IMAGE` alone instead of restarting it onto the same build; a full deploy leaves
   NWNX out for it.
 - `POST /release` answers 502 with GitHub's reason, and `GET /repos` an error per repository, when GitHub refuses (they answered 500).

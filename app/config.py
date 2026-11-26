@@ -130,6 +130,26 @@ class Settings(BaseSettings):
     # release, so the overview does not list it as waiting. Unset: none.
     release_bump_message: str = ""
 
+    # --- game data (app/gamedata): read-only routes a website uses. Off unless GAME_NWN_ROOT is set. -----------------------------------
+    # Folders the API itself reads (mounted read-only into its container), not paths on the game host.
+    # The game's install: data/*.key and the bifs, lang/<language>/data/dialog.tlk, ovr/.
+    game_nwn_root: str = ""
+    game_language: str = "en"
+    # The haks, and their names in the module's hak list order (the first wins), comma separated. GAME_HAKS unset: read from the module.
+    game_hak_dir: str = ""
+    game_haks: str = ""
+    # The custom talk table's folder (unset: GAME_HAK_DIR) and name without .tlk (unset: read from the module).
+    game_tlk_dir: str = ""
+    game_custom_tlk: str = ""
+    # A copy of the module (.mod): its blueprints, and its hak list and custom talk table when the two settings above are unset.
+    game_module_file: str = ""
+    # An override folder the server uses, if any.
+    game_override_dir: str = ""
+    # The server's item level restriction (nwnplayer.ini ILR): an item's examine panel shows its "Level Required" only when on.
+    game_item_level_restriction: bool = True
+    # The server vault on the game host (read over SSH). Unset: GAME_DIR/home/servervault.
+    servervault: str = ""
+
     # --- Discord --------------------------------------------------------------------------------------------------------------------------
     discord_webhook_url: str = Field("", repr=False)
     discord_username: str = "Server"
@@ -145,6 +165,7 @@ class Settings(BaseSettings):
                 "mod_live": f"{g}/home/modules", "mod_stage": f"{g}/home/modules/.staged",
                 "hak_live": f"{g}/home/hak", "hak_stage": f"{g}/home/hak/.staged", "tlk_live": f"{g}/home/tlk",
                 "development_dir": f"{g}/home/development", "log_file": f"{g}/logs/nwserverLog1.txt", "nwn_env_file": f"{g}/.env",
+                "servervault": f"{g}/home/servervault",
             }
             for k, v in defaults.items():
                 if not getattr(self, k):
@@ -192,6 +213,8 @@ class Settings(BaseSettings):
             "player_db": bool(self.mysql_host and self.player_count_sql),
             "github": bool(self.github_token and self.repos),
             "discord": bool(self.discord_webhook_url),
+            "game_data": bool(self.game_nwn_root),
+            "vault": bool(self.game_host and self.servervault),
         }
 
     # Which settings switch each part on, for the 503 answers and /api/v1/meta/systems (names only, never values).
@@ -206,4 +229,6 @@ class Settings(BaseSettings):
         "player_db": "MYSQL_HOST and PLAYER_COUNT_SQL",
         "github": "GITHUB_TOKEN and REPOS",
         "discord": "DISCORD_WEBHOOK_URL",
+        "game_data": "GAME_NWN_ROOT",
+        "vault": "GAME_HOST and GAME_DIR (or SERVERVAULT)",
     }
