@@ -131,6 +131,8 @@ Running the tests: `pip install -r requirements.txt && python -m pytest -q` (Pyt
 
 - `POST /restart` answers before the game has replied. If Redis is configured but the game does not answer and the container is running
   (a hung module), nothing more happens; the API's log says so.
+- Without Redis, a restart's countdown is not shown by `GET /status` or `GET /progress` (only that a `restart` operation runs);
+  `POST /cancel-restart` still stops it.
 - A module deploy moves every staged `.mod` file to the live folder, not only the one deployed (only the chosen one becomes `NWN_MODULE`).
 - A full deploy stops the container right after the countdown; a module deploy waits 15 seconds more for the game's own save.
 - Without a database query, the status query counts players only (not DMs), and an unanswered query counts as nobody online.

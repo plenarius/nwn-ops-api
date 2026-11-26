@@ -1,12 +1,14 @@
 import asyncio
 import logging
 import re
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from app import notify
 from app.auth import require_feature
+from app.redis_client import redis_command, set_restart_pending
 from app.services import deploy as deploy_svc
 from app.services import nwnx as nwnx_svc
 from app.services import release as release_svc
@@ -99,7 +101,10 @@ async def restart(body: RestartRequest, request: Request):
             logger.info("restart without Redis: %s", msg)
 
     tasks.start("restart", _do_restart())
-    return {"ok": True, "message": f"Restart countdown started ({seconds}s)"}
+    if state.redis is None:
+        return {"ok": True, "in_game": False, "message": f"Restart countdown started ({seconds}s). Redis is not configured (REDIS_URL): "
+                "players get no warning in game, and the API restarts the container at zero"}
+    return {"ok": True, "in_game": True, "message": f"Restart countdown started ({seconds}s)"}
 
 
 @router.post("/stop", dependencies=[require_feature("game")])
@@ -118,16 +123,19 @@ async def stop(body: StopRequest, request: Request):
     seconds = _seconds(body.wait_minutes)
 
     async def _do_stop():
-        ok, msg = await restart_svc.restart_server(
-            redis_client=state.redis, ssh=state.ssh, coolify=state.coolify, settings=s, seconds=seconds, reason=body.reason,
-        )
-        if ok or msg == restart_svc.NO_REDIS:
-            counts = await get_player_count(s, state.db_pool)
-            if anyone_on(counts):
-                await notify.send(s, state.http_session, "server.stopping",
-                                  f"{s.server_name} shuts down in **{notify.minutes(seconds // 60)}**. Please save and log out.")
-            await asyncio.sleep(seconds + 15)
-            ok, msg = await restart_svc.stop_server(state.ssh, s.container_filter)
+        # The in-game countdown is a courtesy: the container is stopped at the end whether or not the game answered.
+        ok, msg = await redis_command(state.redis, "restart", {"seconds": seconds, "reason": body.reason}, s.redis_prefix,
+                                      s.redis_reply_timeout)
+        if ok:
+            await set_restart_pending(state.redis, body.reason, seconds, datetime.now(timezone.utc).isoformat(), s.redis_prefix)
+        else:
+            logger.info("stop: no in-game countdown: %s", msg)
+        counts = await get_player_count(s, state.db_pool)
+        if anyone_on(counts):
+            await notify.send(s, state.http_session, "server.stopping",
+                              f"{s.server_name} shuts down in **{notify.minutes(seconds // 60)}**. Please save and log out.")
+        await asyncio.sleep(seconds + 15)
+        ok, msg = await restart_svc.stop_server(state.ssh, s.container_filter)
         logger.info("stop: %s", msg)
 
     tasks.start("stop", _do_stop())
@@ -193,7 +201,7 @@ async def deploy(body: DeployRequest, request: Request):
             logger.info("Deploy of %s done", body.module)
 
     tasks.start("deploy", _do_deploy())
-    return {"ok": True, "message": f"Deploy started for v{s.module_version(body.module)}"}
+    return {"ok": True, "message": f"Deploy started for {s.module_label(body.module)}"}
 
 
 @router.post("/full-deploy", dependencies=[require_feature("deploy")])

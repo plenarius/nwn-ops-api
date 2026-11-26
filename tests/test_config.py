@@ -45,3 +45,9 @@ def test_features_follow_the_settings():
     s = make_settings(coolify_url="https://c", coolify_token="t")
     assert s.features()["game"] and s.features()["deploy"] and not s.features()["coolify"]
     assert make_settings(coolify_url="https://c", coolify_token="t", coolify_service_uuid="u").features()["coolify"]
+
+
+def test_module_label():
+    s = make_settings()
+    assert s.module_label("world_2-05") == "v2.05"
+    assert s.module_label("mymodule") == "mymodule"

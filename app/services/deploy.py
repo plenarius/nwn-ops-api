@@ -62,7 +62,7 @@ async def deploy_module(ssh: SshClient, redis_client, coolify, http_session, mod
 
     if wait_minutes > 0:
         seconds = wait_minutes * 60
-        reason = f"deploy v{version} by {requester}"
+        reason = f"deploy {s.module_label(mod_name)} by {requester}"
         ok, _ = await redis_command(redis_client, "restart", {"seconds": seconds, "reason": reason}, s.redis_prefix, s.redis_reply_timeout)
         if ok:
             await set_restart_pending(redis_client, reason, seconds, datetime.now(timezone.utc).isoformat(), s.redis_prefix)
@@ -124,7 +124,7 @@ async def deploy_module(ssh: SshClient, redis_client, coolify, http_session, mod
         return errors
 
     await notify.send(s, http_session, "server.restarting",
-                      f"{s.server_name} is restarting now with **v{version}**. It will be back shortly.", version=version)
+                      f"{s.server_name} is restarting now with **{s.module_label(mod_name)}**. It will be back shortly.", version=version)
     return []
 
 

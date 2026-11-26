@@ -55,7 +55,7 @@ The API publishes one JSON object on the command channel:
 ```
 
 The API sends these reasons: what the caller of `POST /api/v1/server/restart` or `/stop` gave (`manual` and `maintenance` by default),
-`deploy v<version> by <requester>`, `full-deploy` and `nwnx-update`.
+`deploy v<version> by <requester>` (the module's name instead of `v<version>` when it holds no version), `full-deploy` and `nwnx-update`.
 
 A message that is not a JSON object should be logged and get no reply. An unknown `cmd` should get the reply `error`,
 `Unknown command: <cmd>`.

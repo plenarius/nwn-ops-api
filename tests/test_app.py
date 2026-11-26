@@ -59,8 +59,8 @@ def test_key_groups(client):
     with patch("app.routers.actions.restart_svc.restart_server", new=AsyncMock(return_value=(True, "ok"))):
         # The team key: restart, yes; stop, no.
         assert client.post("/api/v1/server/restart", headers=_h(TEAM), json={"wait_minutes": 1}).status_code == 200
-        assert client.post("/api/v1/server/stop", headers=_h(TEAM), json={}).status_code == 401
-        assert client.get("/api/v1/meta/systems", headers=_h(TEAM)).status_code == 401
+        assert client.post("/api/v1/server/stop", headers=_h(TEAM), json={}).status_code == 403
+        assert client.get("/api/v1/meta/systems", headers=_h(TEAM)).status_code == 403
     assert client.post("/api/v1/server/stop", headers=_h("wrong-key-0123456789"), json={}).status_code == 401
     assert client.post("/api/v1/server/stop", json={}).status_code == 401
 
@@ -125,6 +125,26 @@ def test_restart_without_redis_waits_then_restarts_from_outside(monkeypatch):
                 c.get("/health")
         assert sleeps == [120]
         hard.assert_awaited_once()
+
+
+def test_stop_stops_even_when_the_game_does_not_answer():
+    s = make_settings(redis_url="redis://:pw@h:6379")
+    with TestClient(create_app(s)) as c:
+        c.app.state.ssh.run = AsyncMock(return_value=SshResult(0, "running|Up 1 hour (healthy)", ""))
+        stop = AsyncMock(return_value=(True, "Container stopped."))
+
+        async def fake_sleep(n):
+            pass
+        with patch("app.routers.actions.redis_command", new=AsyncMock(return_value=(False, "No response from game server."))), \
+             patch("app.routers.actions.asyncio.sleep", new=fake_sleep), \
+             patch("app.routers.actions.restart_svc.stop_server", new=stop), \
+             patch("app.routers.actions.get_player_count", new=AsyncMock(return_value={"players": 0, "dms": 0})):
+            assert c.post("/api/v1/server/stop", headers=_h(API_KEY), json={"wait_minutes": 1}).status_code == 200
+            for _ in range(50):
+                if stop.await_count:
+                    break
+                c.get("/health")
+        stop.assert_awaited_once()
 
 
 def test_cancel_without_redis_cancels_the_waiting_restart():

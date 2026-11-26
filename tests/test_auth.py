@@ -70,3 +70,16 @@ def test_unset_readonly_key_does_not_open_the_route():
 def test_readonly_key_is_rejected_by_full_key_routes():
     client = TestClient(_make_app("full"))
     assert client.get("/protected", headers={"Authorization": "Bearer readonly"}).status_code == 401
+
+
+def test_a_known_key_without_permission_gets_403():
+    app = FastAPI()
+
+    @app.get("/protected")
+    async def protected(dep=require_api_key("full", "admin", access="admin", known_keys=("full", "admin", "team"))):
+        return {"ok": True}
+
+    client = TestClient(app)
+    assert client.get("/protected", headers={"Authorization": "Bearer admin"}).status_code == 200
+    assert client.get("/protected", headers={"Authorization": "Bearer team"}).status_code == 403
+    assert client.get("/protected", headers={"Authorization": "Bearer other"}).status_code == 401

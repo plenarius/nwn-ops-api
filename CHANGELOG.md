@@ -6,7 +6,7 @@ The first version: the operations core of a private ops API that has run a persi
 
 - Status, modules, logs and progress of the game server; restart, cancel, stop and start; module, hak and full deploys; NWNX image pull
   and update; GitHub releases with generated notes and a repository overview; a self-description of every route and setting.
-- Three key groups (full, admin, team).
+- Three key groups (full, admin, team); a known key on a route it can't use gets 403, a wrong key 401.
 - Every part switches on from its settings; only `OPS_API_KEY` is required, and start-up contacts nothing.
 - The restart countdown over NWNX_Redis pub/sub, with the prefix as a setting (docs/contracts/restart.md); without Redis, a restart from
   outside after the countdown.

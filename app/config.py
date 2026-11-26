@@ -166,6 +166,11 @@ class Settings(BaseSettings):
             return f"{int(m.group('major'))}.{m.group('minor')}"
         return name
 
+    def module_label(self, name: str) -> str:
+        """How messages name a module: "v2.05" when MODULE_VERSION_REGEX finds a version in it, else the name itself."""
+        version = self.module_version(name)
+        return f"v{version}" if version != name else name
+
     def features(self) -> dict[str, bool]:
         return {
             "game": bool(self.game_host),

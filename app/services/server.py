@@ -77,7 +77,8 @@ async def get_module_name(ssh: SshClient, settings) -> str:
         if files:
             result = await ssh.run(f"grep -h '^NWN_MODULE=' {files} 2>/dev/null | head -1 | cut -d= -f2-")
             if result.returncode == 0 and result.stdout.strip():
-                return result.stdout.strip()
+                # Coolify's copy quotes its values.
+                return result.stdout.strip().strip('"\'')
         # Only the one line leaves the host: the container's other variables hold passwords.
         result = await ssh.run(
             f"docker inspect -f '{{{{range .Config.Env}}}}{{{{println .}}}}{{{{end}}}}' "

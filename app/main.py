@@ -70,9 +70,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     full = settings.ops_api_key
     # The admin key: server operations (stop, start, deploy, NWNX, release) and the self-description, and nothing else.
-    admin_deps = [require_api_key(full, settings.ops_api_admin_key, access="admin")]
+    every = (full, settings.ops_api_admin_key, settings.ops_api_team_key)
+    admin_deps = [require_api_key(full, settings.ops_api_admin_key, access="admin", known_keys=every)]
     # The team key: status, restart and cancelling it (a bot's or a GM page's key).
-    team_deps = [require_api_key(full, settings.ops_api_admin_key, settings.ops_api_team_key, access="team")]
+    team_deps = [require_api_key(full, settings.ops_api_admin_key, settings.ops_api_team_key, access="team", known_keys=every)]
 
     meta.INCLUDED.clear()
 

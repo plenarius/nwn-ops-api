@@ -3,10 +3,12 @@ import secrets
 from fastapi import Depends, HTTPException, Request
 
 
-def require_api_key(*expected_keys: str, access: str = ""):
+def require_api_key(*expected_keys: str, access: str = "", known_keys: tuple[str, ...] = ()):
     """Accept a bearer token matching any of the non-empty expected keys. `access` names the key group (full, admin, team):
-    /api/v1/meta/systems lists each route under it."""
+    /api/v1/meta/systems lists each route under it. A token among `known_keys` (every key the API has) that this route doesn't take gets
+    403, so a caller can tell a key without permission from a wrong one."""
     keys = [k for k in expected_keys if k]
+    others = [k for k in known_keys if k and k not in keys]
 
     async def _verify(request: Request):
         auth = request.headers.get("Authorization", "")
@@ -20,6 +22,11 @@ def require_api_key(*expected_keys: str, access: str = ""):
         for key in keys:
             matched |= secrets.compare_digest(token, key)
         if not matched:
+            known = False
+            for key in others:
+                known |= secrets.compare_digest(token, key)
+            if known:
+                raise HTTPException(status_code=403, detail=f"This key can't use this route (it needs the {access or 'full'} key)")
             raise HTTPException(status_code=401, detail="Invalid API key")
 
     _verify.access = access
