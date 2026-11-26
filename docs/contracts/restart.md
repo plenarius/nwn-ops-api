@@ -30,6 +30,9 @@ NWNX_REDIS_PUBSUB_SCRIPT=on_pubsub      # the module's script NWNX_Redis runs fo
 NWNX_REDIS_PUBSUB_CHANNELS=nwn:cmd      # the command channel
 ```
 
+NWNX_Redis has no password setting, and its pub/sub connection can't log in to a Redis that asks for one (it logs `Connected!` and is
+subscribed to nothing), so the game's Redis has no password and is reachable on the private network only.
+
 The pub/sub script should ignore messages on any other channel. Other commands may share the channel; they are not part of this contract.
 
 ## The message

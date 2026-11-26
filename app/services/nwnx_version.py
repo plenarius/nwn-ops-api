@@ -59,6 +59,21 @@ async def get_running(ssh: SshClient, name_filter: str = "nwserver") -> dict:
         return _build(None)
 
 
+async def get_configured_image(ssh: SshClient, name_filter: str = "nwserver") -> str:
+    """The image name the game container was made from (its compose `image:`), or "" when unknown."""
+    try:
+        r = await ssh.run(f"docker inspect --format '{{{{.Config.Image}}}}' "
+                          f"$(docker ps -aq --filter name={shlex.quote(name_filter)} | head -1) 2>/dev/null")
+        return r.stdout.strip() if r.returncode == 0 else ""
+    except Exception:
+        return ""
+
+
+def same_image(a: str, b: str) -> bool:
+    """nwnxee/unified:x and docker.io/nwnxee/unified:x are one image."""
+    return parse_image(a) == parse_image(b)
+
+
 async def get_local_image(ssh: SshClient, image: str) -> dict:
     """Labels of the image as pulled on the game server host (what a restart would run)."""
     try:

@@ -64,6 +64,7 @@ async def test_update_restarts_when_the_image_was_already_pulled_but_the_server_
         SshResult(0, "running|Up 2 hours (healthy)", ""),       # server status
         SshResult(0, "abc123\n", ""), SshResult(0, OLD_LABELS, ""),   # running container
         SshResult(0, NEW_LABELS, ""),                           # local image
+        SshResult(0, IMAGE + "\n", ""),                         # the game's own image setting
     ])
     coolify = AsyncMock()
     result = await update_nwnx(**_update_kwargs(mock_ssh, mock_redis, coolify, settings))
@@ -100,9 +101,31 @@ async def test_update_waits_with_a_countdown_when_players_are_online(mock_ssh, m
         SshResult(0, "running|Up 2 hours (healthy)", ""),
         SshResult(0, "abc123\n", ""), SshResult(0, OLD_LABELS, ""),
         SshResult(0, NEW_LABELS, ""),
+        SshResult(0, IMAGE + "\n", ""),
     ])
     kwargs = _update_kwargs(mock_ssh, mock_redis, AsyncMock(), settings)
     kwargs["wait_minutes"] = 15
     await update_nwnx(**kwargs)
     nwnx.redis_command.assert_awaited_once_with(mock_redis, "restart", {"seconds": 900, "reason": "nwnx-update"}, "nwn:", 5.0)
     nwnx.asyncio.sleep.assert_awaited_once_with(915)
+
+
+@pytest.mark.asyncio
+async def test_update_refuses_a_game_on_another_tag(mock_ssh, mock_redis, monkeypatch, settings):
+    # A game pinned to a commit tag would come back on the same build: no stop, no restart, no notice.
+    from app.services import nwnx
+    monkeypatch.setattr(nwnx, "stop_server", AsyncMock())
+    monkeypatch.setattr(nwnx.notify, "send", AsyncMock())
+    mock_ssh.run = AsyncMock(side_effect=[
+        SshResult(0, "Status: Downloaded newer image", ""),
+        SshResult(0, "running|Up 2 hours (healthy)", ""),
+        SshResult(0, "abc123\n", ""), SshResult(0, OLD_LABELS, ""),
+        SshResult(0, NEW_LABELS, ""),
+        SshResult(0, "nwnxee/unified:4eaed6b\n", ""),
+    ])
+    coolify = AsyncMock()
+    result = await update_nwnx(**_update_kwargs(mock_ssh, mock_redis, coolify, settings))
+    assert result["ok"] is False and "not NWNX_IMAGE" in result["message"]
+    nwnx.stop_server.assert_not_awaited()
+    coolify.post.assert_not_awaited()
+    nwnx.notify.send.assert_not_awaited()

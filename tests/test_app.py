@@ -159,3 +159,12 @@ def test_cancel_without_redis_cancels_the_waiting_restart():
             assert r.json() == {"ok": True, "message": "Restart cancelled"}
             assert c.post("/api/v1/server/cancel-restart", headers=_h(API_KEY)).json()["ok"] is False
         hard.assert_not_awaited()
+
+
+def test_a_release_github_refuses_is_a_502_not_a_500():
+    s = make_settings(github_token="bad", repos="module=me/my-module@main")
+    refused = RuntimeError("401, message='Unauthorized'")  # what aiohttp's raise_for_status says
+    with TestClient(create_app(s)) as c, \
+            patch("app.routers.actions.release_svc.get_latest_tag", new=AsyncMock(side_effect=refused)):
+        r = c.post("/api/v1/server/release", headers=_h(API_KEY), json={"repo": "module"})
+    assert r.status_code == 502 and "Unauthorized" in r.json()["detail"]

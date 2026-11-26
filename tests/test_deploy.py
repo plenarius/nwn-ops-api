@@ -239,3 +239,17 @@ async def test_with_ssh_sudo_the_file_changes_run_under_sudo(mock_ssh, mock_redi
     changing = [c for c in calls if any(w in c for w in ("mv ", "sed ", "rm -f", "MODULE="))]
     assert changing and all("sudo -n " in c for c in changing)
     assert not any(c.startswith("sudo") for c in calls if c.startswith(("ls", "md5sum", "docker")))
+
+
+@pytest.mark.asyncio
+async def test_full_deploy_leaves_nwnx_out_for_a_game_on_another_tag(mock_ssh, mock_redis, mock_coolify):
+    s = make_settings(coolify_url="https://c.test", coolify_token="t", coolify_service_uuid="u", nwnx_image="nwnxee/unified:build1")
+    with patch("app.services.deploy.check_module_staged_differs", new=AsyncMock(return_value=False)), \
+         patch("app.services.deploy.check_haks_staged_differs", new=AsyncMock(return_value=False)), \
+         patch("app.services.deploy.nwnx_version.get_running", new=AsyncMock(return_value={"revision": "a"})), \
+         patch("app.services.deploy.nwnx_version.get_latest", new=AsyncMock(return_value={"revision": "b"})), \
+         patch("app.services.deploy.nwnx_version.get_configured_image", new=AsyncMock(return_value="nwnxee/unified:ed79330")):
+        result = await full_deploy(ssh=mock_ssh, redis_client=mock_redis, coolify=mock_coolify, http_session=AsyncMock(),
+                                   wait_minutes=0, settings=s, db_pool=None)
+    assert result == {"ok": True, "applied": [], "message": "Nothing to deploy"}
+    mock_coolify.post.assert_not_awaited()

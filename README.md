@@ -122,8 +122,9 @@ Running the tests: `pip install -r requirements.txt && python -m pytest -q` (Pyt
   the API, and set `SSH_KNOWN_HOSTS` so the API refuses a host that is not yours.
 - **Secrets are never logged.** Tokens, passwords and the webhook URL are kept out of the logs and out of `/api/v1/meta/systems`, which
   shows only whether each key is set. Coolify's answers echo setting values, and are never logged either.
-- **Redis.** Put a password on the game's Redis and reach it over the private network only; anyone who can publish on the command channel
-  can restart the game.
+- **Redis.** Reach the game's Redis over the private network only, and publish its port on the private address alone: anyone who can
+  publish on the command channel can restart the game. A password is no help with upstream NWNX_Redis, which has no setting for one: its
+  pub/sub connection can't log in to a Redis that asks, and then quietly subscribes to nothing.
 - **A restart of the API in the middle of a countdown or deploy loses it.** The operations run inside the API's process, with no record to
   resume from. Don't redeploy the API while one runs (`GET /api/v1/server/progress` shows them).
 
@@ -136,6 +137,9 @@ Running the tests: `pip install -r requirements.txt && python -m pytest -q` (Pyt
 - A module deploy moves every staged `.mod` file to the live folder, not only the one deployed (only the chosen one becomes `NWN_MODULE`).
 - A full deploy stops the container right after the countdown; a module deploy waits 15 seconds more for the game's own save.
 - Without a database query, the status query counts players only (not DMs), and an unanswered query counts as nobody online.
+- An NWNX update pulls `NWNX_IMAGE` and makes the container again; it doesn't change the game's own image setting. To update through the
+  API, the game runs on the same tag as `NWNX_IMAGE` (a moving one, such as a build tag). A game on another tag (a pinned commit) is left
+  alone, with a message saying so, and `GET /status` keeps showing the update as available.
 
 ## Licence
 
