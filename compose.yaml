@@ -1,0 +1,13 @@
+# The ops API on the control host. Settings come from .env beside this file (copy .env.example to .env and fill it in).
+services:
+  ops-api:
+    build: .
+    env_file: .env
+    ports:
+      # Only on the private address (WireGuard): the API can stop your game, so it must never be on a public one.
+      - "${OPS_API_BIND:?set OPS_API_BIND in .env to the control host's private address}:${OPS_API_PORT:-8100}:8100"
+    volumes:
+      # The key the API logs in to the game host with, and that host's public key (readable by uid 1000 in the container).
+      - ${SSH_KEY_FILE:-./ssh/id_ed25519}:/data/ssh/id_ed25519:ro
+      - ${SSH_KNOWN_HOSTS_FILE:-./ssh/known_hosts}:/data/ssh/known_hosts:ro
+    restart: unless-stopped
