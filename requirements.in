@@ -1,0 +1,19 @@
+# What the API needs, unpinned. requirements.txt pins every package; to update them, install these in a clean python:3.12 environment (the
+# image's), run the tests, and write the result over requirements.txt with `pip freeze` (or `uv pip compile requirements.in`).
+fastapi
+uvicorn[standard]
+asyncssh
+aiohttp
+aiomysql
+redis
+pydantic-settings
+# Request tracing (app/tracing.py): the SDK, the OTLP HTTP exporter, and the official instrumentations for what the API calls out to.
+opentelemetry-sdk
+opentelemetry-exporter-otlp-proto-http
+opentelemetry-instrumentation-aiohttp-client
+opentelemetry-instrumentation-redis
+opentelemetry-instrumentation-urllib
+# Tests
+pytest
+pytest-asyncio
+httpx2
