@@ -28,6 +28,8 @@ WireGuard. The API runs on the control host and reaches the game host over SSH; 
 | `GET /api/v1/server/release/preview` | admin | Per repository: the current tag, the next ones, the notes GitHub would write |
 | `POST /api/v1/server/release` | admin | Tag a release on GitHub (`{"repo", "bump": "minor"|"major", "tag_override"}`) |
 | `GET /api/v1/server/repos` | admin | Per repository: last release, commits since, CI runs, the staging run, open pull requests |
+| `POST /api/v1/dev/load` | team | Start the dev server's load workflow (`DEV_WORKFLOW` in `DEV_REPO`) for `{"target": "pr-<n>"|"main"|"rollback", "requested_by"}`; 409 while a load runs |
+| `GET /api/v1/dev/status` | read | What the dev server runs (its `DEV_STATUS_FILE`: build, commit, content version, dev haks, health) and the last load run |
 | `GET /api/v1/meta/systems` | admin | Every route with its key group, which parts are configured, which keys are set |
 | `GET /api/v1/game/tlk/{strref}` | read | The text of a string reference (dialog.tlk, or the module's custom talk table from 16777216) |
 | `GET /api/v1/game/2da/{table}` | read | A 2DA's columns and row count, and where the game finds it (a hak, the module, override, ovr or base) |
@@ -85,6 +87,7 @@ with comments.
 | `PLAYER_COUNT_SQL`, `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DB` | | Optional: count players (and DMs) with a query on the game database instead of the status query |
 | `NWNX_IMAGE` | `ghcr.io/nwnxee/unified:latest` | The image an NWNX update pulls |
 | `NWNX_REPO` | `nwnxee/unified` | The repository it is built from, for commit links |
+| `DEV_REPO`, `DEV_WORKFLOW`, `DEV_REF`, `DEV_STATUS_FILE` | | The dev server: the module repository whose workflow (default `dev-load.yml`, run from `main`) loads a build onto it; `GITHUB_TOKEN` then needs Actions (write) there. The status file is the dev server's `status.json`, mounted read-only |
 | `GITHUB_TOKEN`, `REPOS` | | Releases and the repository overview. `REPOS` is `key=owner/name@branch[#workflow.yml]`, comma separated |
 | `RELEASE_NAME` | `{tag}` | A release's title (`{tag}`, `{repo}`) |
 | `RELEASE_TAG_REGEX`, `RELEASE_TAG_FORMAT` | `^v(\d+)\.(\d+)$`, `v{major}.{minor}` | Which tags are releases, and how the next is written |
