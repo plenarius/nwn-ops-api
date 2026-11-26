@@ -9,6 +9,8 @@ from app.services.server import (
     get_player_count,
     get_server_status,
     get_staged_files,
+    get_started_at,
+    parse_docker_time,
 )
 from app.ssh import SshResult
 from tests.conftest import make_settings
@@ -152,3 +154,44 @@ def test_progress_marker_command_takes_the_latest_start():
     awk_cmd = next(c for c in captured if c.startswith("awk"))
     out = subprocess.run(awk_cmd, shell=True, capture_output=True, text=True).stdout.splitlines()
     assert out[0].endswith("Loading Module: New") and out[1] == "" and out[2] == ""
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("2026-11-26T10:00:00.123456789Z", "2026-11-26T10:00:00+00:00"),
+    ("2026-11-26T10:00:00Z", "2026-11-26T10:00:00+00:00"),
+    ("2026-11-26T12:00:00.5+02:00", "2026-11-26T10:00:00+00:00"),
+    ("0001-01-01T00:00:00Z", None),     # created, never started
+    ("", None),
+    ("Error: No such object", None),
+])
+def test_parse_docker_time(text, expected):
+    assert parse_docker_time(text) == expected
+
+
+@pytest.mark.asyncio
+async def test_get_started_at(mock_ssh):
+    mock_ssh.run = AsyncMock(return_value=SshResult(0, "2026-11-26T10:00:00.1Z", ""))
+    assert await get_started_at(mock_ssh, "nwserver") == "2026-11-26T10:00:00+00:00"
+    assert "{{.State.StartedAt}}" in mock_ssh.run.call_args[0][0] and "name=nwserver" in mock_ssh.run.call_args[0][0]
+    mock_ssh.run = AsyncMock(return_value=SshResult(1, "", "no container"))
+    assert await get_started_at(mock_ssh) is None
+    mock_ssh.run = AsyncMock(side_effect=Exception("timeout"))
+    assert await get_started_at(mock_ssh) is None
+
+
+@pytest.mark.asyncio
+async def test_full_status_reports_started_at(mock_ssh, mock_redis):
+    from app.services import server
+    with patch.object(server, "get_server_status", new=AsyncMock(return_value="running:healthy")), \
+         patch.object(server, "get_started_at", new=AsyncMock(return_value="2026-11-26T10:00:00+00:00")), \
+         patch.object(server, "get_player_count", new=AsyncMock(return_value={"players": 1, "dms": 0})), \
+         patch.object(server, "get_module_version", new=AsyncMock(return_value="1.0")), \
+         patch.object(server, "get_staged_files", new=AsyncMock(return_value=([], []))), \
+         patch.object(server, "check_module_staged_differs", new=AsyncMock(return_value=False)), \
+         patch.object(server, "check_haks_staged_differs", new=AsyncMock(return_value=False)), \
+         patch.object(server.nwnx_version, "get_running", new=AsyncMock(return_value={})), \
+         patch.object(server.nwnx_version, "get_latest", new=AsyncMock(return_value={})), \
+         patch.object(server.nwnx_version, "summary", new=AsyncMock(return_value={
+             "update_available": False, "running": {"short": "a"}, "latest": {"short": "a"}})):
+        d = await server.get_full_status(mock_ssh, None, mock_redis, None, make_settings())
+    assert d["started_at"] == "2026-11-26T10:00:00+00:00" and d["status"] == "running:healthy"

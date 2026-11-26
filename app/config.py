@@ -46,6 +46,8 @@ class Settings(BaseSettings):
     ops_api_key: str = Field(min_length=16, repr=False)
     ops_api_admin_key: str = Field("", repr=False)
     ops_api_team_key: str = Field("", repr=False)
+    # Read-only: status, modules and progress (without its log lines). For a public status page, which must not be able to restart.
+    ops_api_read_key: str = Field("", repr=False)
 
     # --- the game host, over SSH ----------------------------------------------------------------------------------------------------------
     # Its private address (WireGuard). Unset: every route that looks at the game answers 503.
@@ -147,6 +149,13 @@ class Settings(BaseSettings):
             for k, v in defaults.items():
                 if not getattr(self, k):
                     setattr(self, k, v)
+        for name in ("ops_api_admin_key", "ops_api_team_key", "ops_api_read_key"):
+            if 0 < len(getattr(self, name)) < 16:
+                raise ValueError(f"{name.upper()} must be at least 16 characters")
+        if self.ops_api_read_key:
+            if self.ops_api_read_key in (self.ops_api_key, self.ops_api_admin_key, self.ops_api_team_key):
+                # A shared value would make the read key the other key too (or hide the progress log from that caller).
+                raise ValueError("OPS_API_READ_KEY must differ from the other keys")
         parse_repos(self.repos)  # refuse a bad REPOS at start-up
         re.compile(self.module_version_regex)
         re.compile(self.release_tag_regex)

@@ -4,7 +4,7 @@ from fastapi import Depends, HTTPException, Request
 
 
 def require_api_key(*expected_keys: str, access: str = "", known_keys: tuple[str, ...] = ()):
-    """Accept a bearer token matching any of the non-empty expected keys. `access` names the key group (full, admin, team):
+    """Accept a bearer token matching any of the non-empty expected keys. `access` names the key group (full, admin, team, read):
     /api/v1/meta/systems lists each route under it. A token among `known_keys` (every key the API has) that this route doesn't take gets
     403, so a caller can tell a key without permission from a wrong one."""
     keys = [k for k in expected_keys if k]

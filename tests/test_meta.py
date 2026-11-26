@@ -39,6 +39,6 @@ def test_the_app_describes_itself(monkeypatch):
     by = {r["path"]: r for r in d["routes"]}
     assert by["/api/v1/things/{n}"]["access"] == "team" and by["/api/v1/things/{n}"]["summary"] == "One thing, as the team sees it."
     assert by["/health"]["access"] == "open" and by["/api/v1/meta/systems"]["access"] == "admin"
-    assert d["keys"] == {"full": True, "admin": False, "team": True}
+    assert d["keys"] == {"full": True, "admin": False, "team": True, "read": False}
     assert d["features"]["redis"] == {"on": True, "needs": "REDIS_URL"} and d["features"]["coolify"]["on"] is False
     assert "pw" not in str(d) and "team-key" not in str(d)

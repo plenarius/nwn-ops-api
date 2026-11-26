@@ -70,10 +70,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     full = settings.ops_api_key
     # The admin key: server operations (stop, start, deploy, NWNX, release) and the self-description, and nothing else.
-    every = (full, settings.ops_api_admin_key, settings.ops_api_team_key)
+    every = (full, settings.ops_api_admin_key, settings.ops_api_team_key, settings.ops_api_read_key)
     admin_deps = [require_api_key(full, settings.ops_api_admin_key, access="admin", known_keys=every)]
     # The team key: status, restart and cancelling it (a bot's or a GM page's key).
     team_deps = [require_api_key(full, settings.ops_api_admin_key, settings.ops_api_team_key, access="team", known_keys=every)]
+    # The read key: what the server is doing, nothing that changes it or shows its log (a public status page's key).
+    read_deps = [require_api_key(full, settings.ops_api_admin_key, settings.ops_api_team_key, settings.ops_api_read_key, access="read",
+                                 known_keys=every)]
 
     meta.INCLUDED.clear()
 
@@ -84,7 +87,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     include(health.router)
     include(meta.router, dependencies=admin_deps)
-    include(status.router, dependencies=team_deps)
+    include(status.router, dependencies=read_deps)
+    include(status.team_router, dependencies=team_deps)
     include(actions.team_router, dependencies=team_deps)
     include(actions.router, dependencies=admin_deps)
     include(server_repos.router, dependencies=admin_deps)
