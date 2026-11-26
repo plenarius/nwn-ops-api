@@ -133,6 +133,14 @@ class Settings(BaseSettings):
     # release, so the overview does not list it as waiting. Unset: none.
     release_bump_message: str = ""
 
+    # --- the dev server (app/services/dev.py) --------------------------------------------------------------------------------------------
+    # The module repository whose DEV_WORKFLOW loads a build onto the dev server (GITHUB_TOKEN needs Actions: write on it), the branch the
+    # workflow runs from, and the dev server's status.json, mounted read-only (unset: status shows only the last workflow run).
+    dev_repo: str = ""
+    dev_workflow: str = "dev-load.yml"
+    dev_ref: str = "main"
+    dev_status_file: str = ""
+
     # --- game data (app/gamedata): read-only routes a website uses. Off unless GAME_NWN_ROOT is set (the vault: GAME_VAULT). --------------
     # Folders the API itself reads (mounted read-only into its container), not paths on the game host.
     # The game's install: data/*.key and the bifs, lang/<language>/data/dialog.tlk, ovr/.
@@ -183,6 +191,8 @@ class Settings(BaseSettings):
             if self.ops_api_read_key in (self.ops_api_key, self.ops_api_admin_key, self.ops_api_team_key):
                 # A shared value would make the read key the other key too (or hide the progress log from that caller).
                 raise ValueError("OPS_API_READ_KEY must differ from the other keys")
+        if self.dev_repo and not re.match(r"^[\w.-]+/[\w.-]+$", self.dev_repo):
+            raise ValueError("DEV_REPO is owner/name")
         parse_repos(self.repos)  # refuse a bad REPOS at start-up
         re.compile(self.module_version_regex)
         re.compile(self.release_tag_regex)
@@ -221,6 +231,7 @@ class Settings(BaseSettings):
             "github": bool(self.github_token and self.repos),
             "discord": bool(self.discord_webhook_url),
             "game_data": bool(self.game_nwn_root),
+            "dev": bool(self.github_token and self.dev_repo),
             "vault": bool(self.game_vault and self.game_host and self.servervault),
         }
 
@@ -238,5 +249,6 @@ class Settings(BaseSettings):
         "github": "GITHUB_TOKEN and REPOS",
         "discord": "DISCORD_WEBHOOK_URL",
         "game_data": "GAME_NWN_ROOT",
+        "dev": "GITHUB_TOKEN and DEV_REPO",
         "vault": "GAME_VAULT=on, GAME_HOST and GAME_DIR (or SERVERVAULT)",
     }

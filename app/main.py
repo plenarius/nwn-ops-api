@@ -17,7 +17,7 @@ from app.coolify import CoolifyClient
 from app.db import create_db_pool
 from app.redis_client import create_redis
 from app.gamedata.data import GameData
-from app.routers import actions, game, health, meta, server_repos, status
+from app.routers import actions, dev, game, health, meta, server_repos, status
 from app.ssh import SshClient
 from app.task_registry import TaskRegistry
 
@@ -96,5 +96,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     include(actions.router, dependencies=admin_deps)
     include(server_repos.router, dependencies=admin_deps)
     include(game.router, dependencies=read_deps)
+    include(dev.router, dependencies=read_deps)
+    include(dev.team_router, dependencies=team_deps)
     include(game.admin_router, dependencies=admin_deps)
     return app
