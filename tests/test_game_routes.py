@@ -23,7 +23,7 @@ def H(key):
 def client(tmp_path):
     g = make_game(tmp_path)
     s = make_settings(ops_api_admin_key=ADMIN, ops_api_team_key=TEAM, ops_api_read_key=READ, game_nwn_root=str(g["nwn"]),
-                      game_hak_dir=str(g["hak"]), game_tlk_dir=str(g["tlk"]), game_module_file=str(g["module"]))
+                      game_hak_dir=str(g["hak"]), game_tlk_dir=str(g["tlk"]), game_module_file=str(g["module"]), game_vault=True)
     with TestClient(create_app(s)) as c:
         yield c
 
@@ -34,12 +34,32 @@ def test_off_without_settings(monkeypatch):
         r = c.get("/api/v1/game/tlk/1", headers=H(API_KEY))
         assert r.status_code == 503 and "GAME_NWN_ROOT" in r.json()["detail"]
         r = c.get("/api/v1/game/vault/X", headers=H(API_KEY))
-        assert r.status_code == 503 and "SERVERVAULT" in r.json()["detail"]
+        assert r.status_code == 503 and "GAME_VAULT=on" in r.json()["detail"]
         d = c.get("/api/v1/meta/systems", headers=H(API_KEY)).json()
         assert d["features"]["game_data"]["on"] is False
         routes = {(x["path"], x["access"]) for x in d["routes"]}
         assert ("/api/v1/game/vault/{folder}/{file}", "read") in routes
         assert ("/api/v1/game/vault/{folder}/{file}/retire", "admin") in routes
+
+
+@pytest.mark.parametrize("vault_on", [False, True])
+def test_the_vault_needs_game_vault_on_even_with_the_game_host_and_dir(tmp_path, vault_on):
+    """GAME_HOST and GAME_DIR are set on every deploy for restarts; they alone must not open players' vault folders."""
+    s = make_settings(ops_api_admin_key=ADMIN, ops_api_read_key=READ, game_vault=vault_on)
+    with TestClient(create_app(s)) as c:
+        ssh = fake_ssh()
+        c.app.state.ssh = ssh
+        listing = c.get("/api/v1/game/vault/ABCD1234", headers=H(READ))
+        sheet = c.get("/api/v1/game/vault/ABCD1234/testa", headers=H(READ))
+        retire = c.post("/api/v1/game/vault/ABCD1234/testa/retire", headers=H(ADMIN))
+        if vault_on:
+            assert listing.status_code == 200 and retire.status_code == 200
+            assert sheet.status_code == 503 and "GAME_NWN_ROOT" in sheet.json()["detail"]     # a sheet needs the game data too
+        else:
+            for r in (listing, sheet, retire):
+                assert r.status_code == 503 and "GAME_VAULT=on" in r.json()["detail"]
+            assert not ssh.calls
+        assert c.get("/api/v1/meta/systems", headers=H(ADMIN)).json()["features"]["vault"]["on"] is vault_on
 
 
 def test_tlk(client):

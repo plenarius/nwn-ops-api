@@ -130,7 +130,7 @@ class Settings(BaseSettings):
     # release, so the overview does not list it as waiting. Unset: none.
     release_bump_message: str = ""
 
-    # --- game data (app/gamedata): read-only routes a website uses. Off unless GAME_NWN_ROOT is set. -----------------------------------
+    # --- game data (app/gamedata): read-only routes a website uses. Off unless GAME_NWN_ROOT is set (the vault: GAME_VAULT). --------------
     # Folders the API itself reads (mounted read-only into its container), not paths on the game host.
     # The game's install: data/*.key and the bifs, lang/<language>/data/dialog.tlk, ovr/.
     game_nwn_root: str = ""
@@ -147,6 +147,9 @@ class Settings(BaseSettings):
     game_override_dir: str = ""
     # The server's item level restriction (nwnplayer.ini ILR): an item's examine panel shows its "Level Required" only when on.
     game_item_level_restriction: bool = True
+    # The vault routes list and read players' character files, and vault folder names are CD keys, so they stay off until switched on
+    # here, whatever paths are set.
+    game_vault: bool = False
     # The server vault on the game host (read over SSH). Unset: GAME_DIR/home/servervault.
     servervault: str = ""
 
@@ -214,7 +217,7 @@ class Settings(BaseSettings):
             "github": bool(self.github_token and self.repos),
             "discord": bool(self.discord_webhook_url),
             "game_data": bool(self.game_nwn_root),
-            "vault": bool(self.game_host and self.servervault),
+            "vault": bool(self.game_vault and self.game_host and self.servervault),
         }
 
     # Which settings switch each part on, for the 503 answers and /api/v1/meta/systems (names only, never values).
@@ -230,5 +233,5 @@ class Settings(BaseSettings):
         "github": "GITHUB_TOKEN and REPOS",
         "discord": "DISCORD_WEBHOOK_URL",
         "game_data": "GAME_NWN_ROOT",
-        "vault": "GAME_HOST and GAME_DIR (or SERVERVAULT)",
+        "vault": "GAME_VAULT=on, GAME_HOST and GAME_DIR (or SERVERVAULT)",
     }

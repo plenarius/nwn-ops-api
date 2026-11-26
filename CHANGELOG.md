@@ -18,7 +18,10 @@ The first version: the operations core of a private ops API that has run a persi
 - Discord webhook announcements; optional OpenTelemetry tracing.
 - Game data, off unless `GAME_NWN_ROOT` is set: talk table strings, 2DA tables and rows, an item blueprint's examine panel, a player's
   vault folder and a character sheet from its vault file, all on the read key; retiring a character (a rename, refused while anyone is
-  online) on the admin key. The game's files (GFF, ERF, KEY/BIF, TLK, 2DA) are read in pure Python, found in the game's own order.
+  online) on the admin key.
+- Behaviour change: the vault routes are off until `GAME_VAULT=on` (they answer 503 naming it). They used to switch on with `GAME_HOST`
+  and `GAME_DIR`, which every deploy sets for restarts, so the read key could list a player's vault folder (named by CD key) on an API
+  that never meant to serve game data. The game's files (GFF, ERF, KEY/BIF, TLK, 2DA) are read in pure Python, found in the game's own order.
 - An NWNX update leaves a game on another tag than `NWNX_IMAGE` alone instead of restarting it onto the same build; a full deploy leaves
   NWNX out for it.
 - `POST /release` answers 502 with GitHub's reason, and `GET /repos` an error per repository, when GitHub refuses (they answered 500).

@@ -51,3 +51,11 @@ def test_module_label():
     s = make_settings()
     assert s.module_label("world_2-05") == "v2.05"
     assert s.module_label("mymodule") == "mymodule"
+
+
+@pytest.mark.parametrize("value,on", [(None, False), ("off", False), ("on", True), ("true", True)])
+def test_the_vault_is_off_until_game_vault_is_switched_on(monkeypatch, value, on):
+    if value is not None:
+        monkeypatch.setenv("GAME_VAULT", value)
+    s = make_settings()      # GAME_HOST and GAME_DIR set, as on every deploy
+    assert s.servervault == "/srv/game/home/servervault" and s.features()["vault"] is on

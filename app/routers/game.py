@@ -1,5 +1,6 @@
 """Game data for a website: talk table strings, 2DA rows, an item's examine panel, a character sheet from the server vault. Read-only and
-nothing private (no log, address or account), so the read key opens them; taking a character out of the vault is the admin key's."""
+nothing private (no log, address or account), so the read key opens them; taking a character out of the vault is the admin key's. The
+vault routes also need GAME_VAULT=on: a vault folder's name is a player's CD key."""
 
 from __future__ import annotations
 
