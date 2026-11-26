@@ -45,6 +45,14 @@ async def update_nwnx(ssh: SshClient, redis_client, coolify, http_session, wait_
         current = nwnx_version.short(running["revision"]) or "unknown"
         logger.info("nwnx update: nothing to do, running %s (%s)", current, pull_msg)
         return {"ok": True, "pulled": pulled, "message": f"Already running the latest NWNX build ({current})."}
+    # The update pulls NWNX_IMAGE and makes the container again; it never changes the game's own image setting. A game on another
+    # tag (a pinned commit) would come back on the same build, after a restart and an "updated" notice for nothing.
+    configured = await nwnx_version.get_configured_image(ssh, s.container_filter)
+    if configured and not nwnx_version.same_image(configured, s.nwnx_image):
+        msg = (f"The game runs {configured}, not NWNX_IMAGE ({s.nwnx_image}), so a restart would bring it back on the same build. "
+               "Put the game on the same tag as NWNX_IMAGE to update it here.")
+        logger.warning("nwnx update: %s", msg)
+        return {"ok": False, "pulled": pulled, "message": msg}
     logger.info("nwnx update: %s -> %s", nwnx_version.short(running["revision"]), nwnx_version.short(local["revision"]))
 
     counts = await get_player_count(s, db_pool)

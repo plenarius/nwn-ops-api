@@ -13,3 +13,6 @@ The first version: the operations core of a private ops API that has run a persi
 - Coolify, or a start command over SSH, to bring the game back.
 - Players counted with the game's own status query, or a query on the game database.
 - Discord webhook announcements; optional OpenTelemetry tracing.
+- An NWNX update leaves a game on another tag than `NWNX_IMAGE` alone instead of restarting it onto the same build; a full deploy leaves
+  NWNX out for it.
+- `POST /release` answers 502 with GitHub's reason, and `GET /repos` an error per repository, when GitHub refuses (they answered 500).

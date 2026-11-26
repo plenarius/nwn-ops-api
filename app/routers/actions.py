@@ -289,7 +289,10 @@ async def create_release(body: ReleaseRequest, request: Request):
     if body.tag_override:
         tag = body.tag_override
     else:
-        major, minor, _ = await release_svc.get_latest_tag(state.http_session, repo.full_name, s.github_token, s.release_tag_regex)
+        try:
+            major, minor, _ = await release_svc.get_latest_tag(state.http_session, repo.full_name, s.github_token, s.release_tag_regex)
+        except Exception as e:  # noqa: BLE001 - GitHub refused (a bad token, an unknown repository): say so instead of a 500
+            raise HTTPException(502, f"GitHub: {e}")
         tags = release_svc.next_tags(major, minor, s.release_tag_format)
         tag = tags["next_major"] if body.bump == "major" else tags["next_minor"]
 

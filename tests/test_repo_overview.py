@@ -153,3 +153,10 @@ async def test_a_failed_release_run_names_the_failed_step():
     data = await ro.overview(FakeSession(over={"/runs/77/jobs": jobs, "/actions/workflows/": _release_run("completed", "failure")}), _s())
     st = data["repos"][0]["staging"]
     assert st["conclusion"] == "failure" and st["job"] == "stage" and st["step"] == "Copy to the game host"
+
+
+@pytest.mark.asyncio
+async def test_a_refused_token_is_each_repositorys_error_not_an_exception():
+    data = await ro.overview(FakeSession(fail=("/tags",)), _s())
+    assert [r["repo"] for r in data["repos"]] == ["module", "haks"]
+    assert all(r["error"] == "boom" and r["tag"] is None for r in data["repos"])

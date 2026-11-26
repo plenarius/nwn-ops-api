@@ -33,7 +33,12 @@ def _commit(c: dict) -> dict:
 
 async def _one(session, token: str, repo: Repo, settings) -> dict:
     base = f"https://api.github.com/repos/{repo.full_name}"
-    _, _, tag = await get_latest_tag(session, repo.full_name, token, settings.release_tag_regex)
+    out = {"repo": repo.key, "full_name": repo.full_name, "branch": repo.branch, "url": f"https://github.com/{repo.full_name}"}
+    try:
+        _, _, tag = await get_latest_tag(session, repo.full_name, token, settings.release_tag_regex)
+    except Exception as e:  # noqa: BLE001 - a refused token or an unknown repository is this repository's answer, not a 500
+        logger.warning("repo overview %s: %s", repo.key, e)
+        return {**out, "tag": None, "error": str(e)}
 
     async def since():
         if not tag:
@@ -88,7 +93,7 @@ async def _one(session, token: str, repo: Repo, settings) -> dict:
                  "labels": [label["name"] for label in p["labels"]]} for p in data]
 
     results = await asyncio.gather(since(), release(), runs(), staging(), pulls(), return_exceptions=True)
-    out = {"repo": repo.key, "full_name": repo.full_name, "branch": repo.branch, "url": f"https://github.com/{repo.full_name}", "tag": tag or None}
+    out["tag"] = tag or None
     for key, res in zip(("since", "release", "runs", "staging", "pulls"), results):
         if isinstance(res, BaseException):
             logger.warning("repo overview %s/%s: %s", repo.key, key, res)

@@ -149,6 +149,12 @@ async def full_deploy(ssh: SshClient, redis_client, coolify, http_session, wait_
         nwnx_version.get_latest(http_session, s.nwnx_image),
     )
     nwnx_update = nwnx_version.update_available(nwnx_running, nwnx_latest)
+    if nwnx_update and "nwnx" not in skip:
+        configured = await nwnx_version.get_configured_image(ssh, s.container_filter)
+        if configured and not nwnx_version.same_image(configured, s.nwnx_image):
+            # Same reason as in update_nwnx: the game would come back on its own tag's build.
+            logger.warning("full_deploy: NWNX left out: the game runs %s, not NWNX_IMAGE (%s)", configured, s.nwnx_image)
+            nwnx_update = False
     running_rev, latest_rev = nwnx_running.get("revision"), nwnx_latest.get("revision")
     if not (running_rev and latest_rev):
         logger.warning("full_deploy: NWNX not checked, running %s, latest %s",

@@ -164,3 +164,8 @@ async def test_commits_behind_is_asked_once_per_pair():
     assert await nwnx_version.commits_behind(session, "nwnxee/unified", OLD, NEW) == 22
     assert await nwnx_version.commits_behind(session, "nwnxee/unified", OLD, NEW) == 22
     assert session.calls == [url]
+
+
+def test_same_image_reads_docker_hub_names_alike():
+    assert nwnx_version.same_image("nwnxee/unified:build8193.37.17", "docker.io/nwnxee/unified:build8193.37.17")
+    assert not nwnx_version.same_image("nwnxee/unified:ed79330", "nwnxee/unified:build8193.37.17")
