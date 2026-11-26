@@ -1,3 +1,4 @@
+import secrets
 import shlex
 
 from fastapi import APIRouter, Request
@@ -5,13 +6,15 @@ from fastapi import APIRouter, Request
 from app.auth import require_feature
 from app.services import server
 
+# Read routes: the read key opens them (main.py). The log stays on team_router: it names players and their addresses.
 router = APIRouter(prefix="/api/v1/server", tags=["server"])
+team_router = APIRouter(prefix="/api/v1/server", tags=["server"])
 
 
 @router.get("/status", dependencies=[require_feature("game")])
 async def server_status(request: Request):
-    """The game server's state: running or not, players and DMs, the module and NWNX image it runs, what is staged, a pending restart,
-    changes waiting."""
+    """The game server's state: running or not, when it last started, players and DMs, the module and NWNX image it runs, what is staged,
+    a pending restart, changes waiting."""
     state = request.app.state
     return await server.get_full_status(
         ssh=state.ssh, db_pool=state.db_pool, redis_client=state.redis, http_session=state.http_session, settings=state.settings,
@@ -25,7 +28,7 @@ async def server_modules(request: Request):
     return await server.get_available_modules(state.ssh, state.settings)
 
 
-@router.get("/logs", dependencies=[require_feature("logs")])
+@team_router.get("/logs", dependencies=[require_feature("logs")])
 async def server_logs(request: Request, lines: int = 20):
     """The last lines (at most 100) of the game's server log."""
     lines = max(1, min(lines, 100))
@@ -34,8 +37,15 @@ async def server_logs(request: Request, lines: int = 20):
     return {"lines": server.strip_ansi(result.stdout).splitlines()}
 
 
+def _is_read_key(request: Request) -> bool:
+    key = request.app.state.settings.ops_api_read_key
+    token = request.headers.get("Authorization", "").removeprefix("Bearer ")
+    return bool(key) and secrets.compare_digest(token, key)
+
+
 @router.get("/progress", dependencies=[require_feature("game")])
 async def server_progress(request: Request, lines: int = 60):
-    """What the server is doing right now: running operations, the container, a countdown and the start-up markers in its log."""
+    """What the server is doing right now: running operations, the container, a countdown and the start-up markers in its log (with the
+    log's last lines, except for the read key)."""
     state = request.app.state
-    return await server.get_progress(state.ssh, state.redis, state.tasks, state.settings, lines)
+    return await server.get_progress(state.ssh, state.redis, state.tasks, state.settings, lines, with_log=not _is_read_key(request))

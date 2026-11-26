@@ -12,10 +12,10 @@ WireGuard. The API runs on the control host and reaches the game host over SSH; 
 | Route | Key | What |
 |---|---|---|
 | `GET /health` | none | For Docker's health check |
-| `GET /api/v1/server/status` | team | Running or not, players online, the module, the NWNX build running and the newest one, what is staged, a pending countdown |
-| `GET /api/v1/server/modules` | team | The modules that could be deployed (staged and live), with the current one |
+| `GET /api/v1/server/status` | read | Running or not, when it last started (`started_at`, ISO 8601 UTC, null if unknown), players online, the module, the NWNX build running and the newest one, what is staged, a pending countdown |
+| `GET /api/v1/server/modules` | read | The modules that could be deployed (staged and live), with the current one |
 | `GET /api/v1/server/logs?lines=20` | team | The end of the game's log |
-| `GET /api/v1/server/progress` | team | What is happening right now: running operations, the container, the countdown, the start-up markers in the log |
+| `GET /api/v1/server/progress` | read | What is happening right now: running operations, the container, the countdown, the start-up markers in the log, and the log's last lines (not for the read key) |
 | `POST /api/v1/server/restart` | team | Restart after a countdown (`{"wait_minutes", "reason"}`) |
 | `POST /api/v1/server/cancel-restart` | team | Cancel the countdown |
 | `POST /api/v1/server/stop` | admin | Stop after a countdown |
@@ -28,6 +28,9 @@ WireGuard. The API runs on the control host and reaches the game host over SSH; 
 | `POST /api/v1/server/release` | admin | Tag a release on GitHub (`{"repo", "bump": "minor"|"major", "tag_override"}`) |
 | `GET /api/v1/server/repos` | admin | Per repository: last release, commits since, CI runs, the staging run, open pull requests |
 | `GET /api/v1/meta/systems` | admin | Every route with its key group, which parts are configured, which keys are set |
+
+Each key opens its own routes and those of the groups below it: full and admin open everything, team opens team and read,
+read opens only read. A known key on a route above it gets 403, a wrong key 401.
 
 The long operations (restart, stop, deploys, NWNX update) answer at once and run in the background; `GET /api/v1/server/progress` follows
 them. Only one of each runs at a time (409 otherwise).
@@ -51,7 +54,8 @@ with comments.
 |---|---|---|
 | `OPS_API_KEY` | (required, 16+ characters) | The full key: opens every route |
 | `OPS_API_ADMIN_KEY` | | Opens every route too; for your own tools, so the full key can stay in a safe |
-| `OPS_API_TEAM_KEY` | | Status, modules, logs, progress, restart, cancel-restart |
+| `OPS_API_TEAM_KEY` | | The read routes, plus logs, restart, cancel-restart |
+| `OPS_API_READ_KEY` | | Status, modules and progress (without its log lines), nothing else: for a public status page. |
 | `GAME_HOST` | | The game host's private address. Switches on everything that looks at the game |
 | `SSH_USER` | `nwn` | The user the API logs in as. It must be able to run `docker` |
 | `SSH_KEY_PATH` | `/data/ssh/id_ed25519` | Its private key, in the container |
@@ -114,7 +118,7 @@ Running the tests: `pip install -r requirements.txt && python -m pytest -q` (Pyt
 - **Bind it to the private address only.** The API can stop your game and change what it runs. `compose.yaml` publishes it on
   `OPS_API_BIND` and refuses to start without it; set it to the control host's WireGuard address, never `0.0.0.0` or a public address,
   and keep the port closed at your provider's firewall too. The private interface must be up before Docker starts the container.
-- **One key per caller.** Give a bot or a GM page the team key, your own tools the admin key, and keep the full key out of daily use.
+- **One key per caller.** Give a public status page the read key (it can't restart the game or read its log), a bot or a GM page the team key, your own tools the admin key, and keep the full key out of daily use.
   Keys are compared in constant time. Make them with `openssl rand -hex 32`; a key shorter than 16 characters is refused at start-up.
   Changing a key is a restart of the API with the new value, then the same change in the callers.
 - **The API trusts its callers.** `reason` and the like are whatever the caller sends; a leaked key is that caller's powers.

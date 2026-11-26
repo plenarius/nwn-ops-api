@@ -14,7 +14,7 @@ from app import __version__
 router = APIRouter(prefix="/api/v1/meta", tags=["meta"])
 
 # The setting behind each key group: whether it is set shows which callers are switched on. (The full key opens every group.)
-KEYS = {"full": "ops_api_key", "admin": "ops_api_admin_key", "team": "ops_api_team_key"}
+KEYS = {"full": "ops_api_key", "admin": "ops_api_admin_key", "team": "ops_api_team_key", "read": "ops_api_read_key"}
 
 
 def _access(route: APIRoute) -> str:

@@ -10,7 +10,7 @@ from app.routers import meta
 from app.ssh import SshResult
 from tests.conftest import API_KEY, make_settings
 
-ADMIN, TEAM = "admin-key-0123456789", "team-key-0123456789"
+ADMIN, TEAM, READ = "admin-key-0123456789", "team-key-0123456789", "read-key-0123456789"
 
 
 def _h(key):
@@ -27,7 +27,7 @@ def test_starts_with_only_the_key(monkeypatch):
         assert r.status_code == 503 and "GITHUB_TOKEN and REPOS" in r.json()["detail"]
         d = c.get("/api/v1/meta/systems", headers=_h(API_KEY)).json()
         assert not any(f["on"] for f in d["features"].values())
-        assert d["keys"] == {"full": True, "admin": False, "team": False}
+        assert d["keys"] == {"full": True, "admin": False, "team": False, "read": False}
 
 
 def test_refuses_to_start_without_a_long_enough_key(monkeypatch):
@@ -47,7 +47,7 @@ def test_refuses_a_bad_repos_setting(monkeypatch):
 
 @pytest.fixture
 def client():
-    s = make_settings(ops_api_admin_key=ADMIN, ops_api_team_key=TEAM, coolify_url="https://coolify.test", coolify_token="t",
+    s = make_settings(ops_api_admin_key=ADMIN, ops_api_team_key=TEAM, ops_api_read_key=READ, coolify_url="https://coolify.test", coolify_token="t",
                       coolify_service_uuid="u")
     with TestClient(create_app(s)) as c:
         yield c
@@ -67,11 +67,45 @@ def test_key_groups(client):
 
 def test_every_route_has_a_key_group(client):
     routes = meta.routes()
-    assert {r["access"] for r in routes} == {"open", "team", "admin"}
+    assert {r["access"] for r in routes} == {"open", "read", "team", "admin"}
     assert [r["path"] for r in routes if r["access"] == "open"] == ["/health"]
     by = {(r["path"], r["methods"][0]): r["access"] for r in routes}
     assert by[("/api/v1/server/restart", "POST")] == "team" and by[("/api/v1/server/deploy", "POST")] == "admin"
-    assert by[("/api/v1/server/status", "GET")] == "team"
+    assert by[("/api/v1/server/status", "GET")] == "read" and by[("/api/v1/server/logs", "GET")] == "team"
+    # Every route but the read routes is for writes, actions, logs or secrets: the read key gets 403 there.
+    assert sorted(p for (p, m), a in by.items() if a == "read") == [
+        "/api/v1/server/modules", "/api/v1/server/progress", "/api/v1/server/status"]
+
+
+def test_the_read_key_reads_and_does_nothing_else(client):
+    client.app.state.ssh.run = AsyncMock(return_value=SshResult(0, "running|Up 1 hour (healthy)", ""))
+    for path in ("/api/v1/server/modules", "/api/v1/server/progress"):
+        assert client.get(path, headers=_h(READ)).status_code == 200
+    with patch("app.routers.status.server.get_full_status", new=AsyncMock(return_value={"status": "running"})):
+        assert client.get("/api/v1/server/status", headers=_h(READ)).status_code == 200
+    for method, path in [(r["methods"][0], r["path"]) for r in meta.routes() if r["access"] in ("team", "admin")]:
+        r = client.request(method, path.replace("{n}", "1"), headers=_h(READ), json={})
+        assert r.status_code == 403, (method, path, r.status_code)
+
+
+def test_progress_leaves_the_log_out_for_the_read_key(client):
+    cmds = []
+
+    async def run(cmd, timeout=15):
+        cmds.append(cmd)
+        return SshResult(0, "Name: someone IP: 192.0.2.9" if cmd.startswith("tail") else "", "")
+    client.app.state.ssh.run = run
+    assert client.get("/api/v1/server/progress", headers=_h(READ)).json()["log"] == []
+    assert not any(c.startswith("tail") for c in cmds)
+    assert client.get("/api/v1/server/progress", headers=_h(TEAM)).json()["log"] == ["Name: someone IP: 192.0.2.9"]
+
+
+@pytest.mark.parametrize("kw", [{"ops_api_read_key": "short"}, {"ops_api_read_key": API_KEY}, {"ops_api_read_key": TEAM},
+                                {"ops_api_admin_key": "short"}, {"ops_api_team_key": "short"}])
+def test_refuses_a_key_too_short_or_a_shared_read_key(kw):
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        make_settings(**{"ops_api_team_key": TEAM, **kw})
 
 
 def test_a_second_restart_is_refused_while_one_runs(client):

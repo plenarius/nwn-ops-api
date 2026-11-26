@@ -41,6 +41,34 @@ async def get_server_status(ssh: SshClient, name_filter: str = "nwserver") -> st
     return None
 
 
+async def get_started_at(ssh: SshClient, name_filter: str = "nwserver") -> str | None:
+    """When the game container last started (Docker's State.StartedAt), as ISO 8601 UTC; None if there is no container or it never
+    started."""
+    try:
+        result = await ssh.run(
+            "docker inspect -f '{{.State.StartedAt}}' "
+            f"$(docker ps -aq --filter name={shlex.quote(name_filter)} | head -1) 2>/dev/null"
+        )
+    except Exception:
+        return None
+    return parse_docker_time(result.stdout.strip()) if result.returncode == 0 else None
+
+
+def parse_docker_time(text: str) -> str | None:
+    """Docker's RFC 3339 time with nanoseconds ("2026-11-26T10:00:00.123456789Z") as ISO 8601 UTC to the second; None for its zero time
+    (a container never started) or anything else."""
+    m = re.match(r"^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)(?:\.\d+)?(Z|[+-]\d\d:\d\d)$", text.splitlines()[0] if text else "")
+    if not m:
+        return None
+    try:
+        when = datetime.fromisoformat(m.group(1) + ("+00:00" if m.group(2) == "Z" else m.group(2)))
+    except ValueError:
+        return None
+    if when.year < 1970:
+        return None
+    return when.astimezone(timezone.utc).isoformat()
+
+
 def is_running(status: str | None) -> bool:
     return status is not None and "running" in status
 
@@ -263,10 +291,11 @@ def _countdown(pending) -> dict | None:
 async def get_full_status(ssh: SshClient, db_pool, redis_client, http_session: aiohttp.ClientSession, settings) -> dict:
     s = settings
     (
-        status, counts, mod_version, (staged_mods, staged_haks),
+        status, started_at, counts, mod_version, (staged_mods, staged_haks),
         nwnx_running, mod_differs, haks_differ, nwnx_latest,
     ) = await asyncio.gather(
         get_server_status(ssh, s.container_filter),
+        get_started_at(ssh, s.container_filter),
         get_player_count(s, db_pool),
         get_module_version(ssh, s),
         get_staged_files(ssh, s.mod_stage, s.hak_stage),
@@ -295,6 +324,7 @@ async def get_full_status(ssh: SshClient, db_pool, redis_client, http_session: a
 
     return {
         "status": status,
+        "started_at": started_at,
         "players": counts["players"],
         "dms": counts["dms"],
         "module": mod_version,
@@ -319,10 +349,10 @@ def strip_ansi(text: str) -> str:
     return _ANSI.sub("", text)
 
 
-async def get_progress(ssh: SshClient, redis_client, tasks, settings, lines: int = 60) -> dict:
+async def get_progress(ssh: SshClient, redis_client, tasks, settings, lines: int = 60, with_log: bool = True) -> dict:
     """What the server is doing right now, read from the outside so it works for every kind of restart or deploy: the running operations,
     the container's state, a pending countdown, and the markers the game writes in its log as it starts (module named, startup, areas
-    loaded)."""
+    loaded). with_log=False leaves out the log's last lines (the read key: they name players and their addresses)."""
     lines = max(1, min(lines, 200))
     log_file = shlex.quote(settings.log_file) if settings.log_file else ""
 
@@ -330,7 +360,7 @@ async def get_progress(ssh: SshClient, redis_client, tasks, settings, lines: int
         return None
     container, log, markers, pending = await asyncio.gather(
         get_server_status(ssh, settings.container_filter),
-        ssh.run(f"tail -n {lines} {log_file}", timeout=15) if log_file else nothing(),
+        ssh.run(f"tail -n {lines} {log_file}", timeout=15) if log_file and with_log else nothing(),
         # The log is not cleared at a restart: take the latest "Loading Module" and only the markers after it.
         ssh.run(
             "awk '/Loading Module:/{m=$0;s=\"\";a=\"\"} /Primary server startup complete/{s=$0} /Area loading complete/{a=$0} "
